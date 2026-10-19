@@ -54,7 +54,7 @@ class BootImageTests(unittest.TestCase):
         image, manifest = build_from_source(dtb, shim(), board['boot_image'])
         fields, parts, valid = parse(image)
         self.assertTrue(valid)
-        self.assertEqual(fields[3], 0x47000000)
+        self.assertEqual(fields[3], 0x80000000)
         self.assertEqual(parts[0][40:512], b'\xff' * 472)
         self.assertEqual(parts[1][40:512], b'\xff' * 472)
         self.assertEqual(manifest['input_kind'], 'tracked DTS and board configuration')

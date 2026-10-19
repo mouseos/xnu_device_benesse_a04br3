@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import subprocess
 from bootimg import build_from_source, sha256
+import payload
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -29,6 +30,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--bootshim', type=Path, default=ROOT.parent / 'bootshim')
     parser.add_argument('--out', type=Path, default=ROOT.parent / 'out' / 'diagnostic')
+    parser.add_argument('--kernel', type=Path)
+    parser.add_argument('--kernel-build-json', type=Path)
     args = parser.parse_args()
     lock = json.loads((ROOT / 'sources.lock.json').read_text())
     shim_root = args.bootshim.resolve()
@@ -45,11 +48,28 @@ def main():
                     str(ROOT / 'dts' / 'mt8167-benesse-a04br3.dts')], check=True)
     dtb = dtb_path.read_bytes()
     config = json.loads((ROOT / 'board.json').read_text())['boot_image']
+    packed = None
+    kernel_info = None
+    if args.kernel:
+        if not args.kernel_build_json:
+            parser.error('--kernel requires its source-build provenance JSON')
+        kernel = args.kernel.read_bytes()
+        provenance = json.loads(args.kernel_build_json.read_text())
+        if (not provenance.get('full_kernel_built') or
+                provenance.get('source_commit') != lock['kernel']['commit'] or
+                provenance.get('kernel_sha256') != sha256(kernel)):
+            parser.error('kernel is not the successful source build locked by this device revision')
+        memory = json.loads((ROOT / 'board.json').read_text())['xnu_handoff']
+        raw, kernel_info = payload.build(kernel, int(memory['physical_base'], 0),
+                                         int(memory['managed_size'], 0), memory['cmdline'])
+        packed = raw
+        kernel_info.update(source_build=provenance,
+                           payload_bytes=len(packed), kernel_sha256=sha256(kernel))
     env = dict(os.environ, SHIM_OUT=str(destination / 'shim'))
     subprocess.run(['bash', str(shim_root / 'build.sh')], check=True, env=env)
     shim = (destination / 'shim' / 'Image').read_bytes()
-    image, manifest = build_from_source(dtb, shim, config)
-    repeated, _ = build_from_source(dtb, shim, config)
+    image, manifest = build_from_source(dtb, shim, config, packed)
+    repeated, _ = build_from_source(dtb, shim, config, packed)
     if image != repeated:
         raise RuntimeError('packaging is not deterministic')
     prefix = os.environ.get('CROSS_COMPILE', 'aarch64-linux-gnu-')
@@ -62,6 +82,7 @@ def main():
                     dtc=output(['dtc', '--version']),
                     python=output(['python3', '--version']),
                     packaging_reproducible=True)
+    manifest['kernel'] = kernel_info
     (destination / 'boot.img').write_bytes(image)
     (destination / 'build.json').write_text(json.dumps(manifest, indent=2) + '\n')
     (destination / 'SHA256SUMS').write_text(sha256(image) + '  boot.img\n')

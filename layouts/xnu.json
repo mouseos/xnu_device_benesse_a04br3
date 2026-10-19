@@ -1,0 +1,161 @@
+{
+  "sector_bytes": 512,
+  "disk_sectors": 30535680,
+  "disk_guid": "00000000-0000-0000-0000-000000000000",
+  "entry_count": 128,
+  "partitions": [
+    {
+      "name": "proinfo",
+      "first_lba": 1024,
+      "sectors": 6144,
+      "attributes": 0,
+      "type_guid": "ebd0a0a2-b9e5-4433-87c0-68b6b72699c7",
+      "unique_guid": "f57ad330-39c2-4488-9bb0-00cb43c9ccd4"
+    },
+    {
+      "name": "nvram",
+      "first_lba": 7168,
+      "sectors": 10240,
+      "attributes": 0,
+      "type_guid": "ebd0a0a2-b9e5-4433-87c0-68b6b72699c7",
+      "unique_guid": "fe686d97-3544-4a41-be21-167e25b61b6f"
+    },
+    {
+      "name": "protect1",
+      "first_lba": 17408,
+      "sectors": 20480,
+      "attributes": 0,
+      "type_guid": "ebd0a0a2-b9e5-4433-87c0-68b6b72699c7",
+      "unique_guid": "1cb143a8-b1a8-4b57-b251-945c5119e8fe"
+    },
+    {
+      "name": "protect2",
+      "first_lba": 37888,
+      "sectors": 20480,
+      "attributes": 0,
+      "type_guid": "ebd0a0a2-b9e5-4433-87c0-68b6b72699c7",
+      "unique_guid": "3b9e343b-cdc8-4d7f-9fa6-b6812e50ab62"
+    },
+    {
+      "name": "persist",
+      "first_lba": 58368,
+      "sectors": 98304,
+      "attributes": 0,
+      "type_guid": "ebd0a0a2-b9e5-4433-87c0-68b6b72699c7",
+      "unique_guid": "5f6a2c79-6617-4b85-ac02-c2975a14d2d7"
+    },
+    {
+      "name": "seccfg",
+      "first_lba": 156672,
+      "sectors": 512,
+      "attributes": 0,
+      "type_guid": "ebd0a0a2-b9e5-4433-87c0-68b6b72699c7",
+      "unique_guid": "4ae2050b-5db5-4ff7-aad3-5730534be63d"
+    },
+    {
+      "name": "lk",
+      "first_lba": 157184,
+      "sectors": 768,
+      "attributes": 4,
+      "type_guid": "ebd0a0a2-b9e5-4433-87c0-68b6b72699c7",
+      "unique_guid": "1f9b0939-e16b-4bc9-a5bc-dc2ee969d801"
+    },
+    {
+      "name": "lk2",
+      "first_lba": 157952,
+      "sectors": 768,
+      "attributes": 0,
+      "type_guid": "ebd0a0a2-b9e5-4433-87c0-68b6b72699c7",
+      "unique_guid": "d722c721-0dee-4cb8-8a83-2c63cd1393c7"
+    },
+    {
+      "name": "boot",
+      "first_lba": 294912,
+      "sectors": 262144,
+      "attributes": 0,
+      "type_guid": "ebd0a0a2-b9e5-4433-87c0-68b6b72699c7",
+      "unique_guid": "e02179a8-ceb5-48a9-8831-4f1c9c5a8695"
+    },
+    {
+      "name": "recovery",
+      "first_lba": 191488,
+      "sectors": 32768,
+      "attributes": 0,
+      "type_guid": "ebd0a0a2-b9e5-4433-87c0-68b6b72699c7",
+      "unique_guid": "84b09a81-fad2-41ac-890e-407c24975e74"
+    },
+    {
+      "name": "para",
+      "first_lba": 224256,
+      "sectors": 1024,
+      "attributes": 0,
+      "type_guid": "ebd0a0a2-b9e5-4433-87c0-68b6b72699c7",
+      "unique_guid": "e8f0a5ef-8d1b-42ea-9c2a-835cd77de363"
+    },
+    {
+      "name": "logo",
+      "first_lba": 225280,
+      "sectors": 16384,
+      "attributes": 0,
+      "type_guid": "ebd0a0a2-b9e5-4433-87c0-68b6b72699c7",
+      "unique_guid": "d5f0e175-a6e1-4db7-94c0-f82ad032950b"
+    },
+    {
+      "name": "expdb",
+      "first_lba": 241664,
+      "sectors": 20480,
+      "attributes": 0,
+      "type_guid": "ebd0a0a2-b9e5-4433-87c0-68b6b72699c7",
+      "unique_guid": "1d9056e1-e139-4fca-8c0b-b75fd74d81c6"
+    },
+    {
+      "name": "tee1",
+      "first_lba": 262144,
+      "sectors": 10240,
+      "attributes": 0,
+      "type_guid": "ebd0a0a2-b9e5-4433-87c0-68b6b72699c7",
+      "unique_guid": "7792210b-b6a8-45d5-ad91-3361ed14c608"
+    },
+    {
+      "name": "tee2",
+      "first_lba": 272384,
+      "sectors": 10240,
+      "attributes": 0,
+      "type_guid": "ebd0a0a2-b9e5-4433-87c0-68b6b72699c7",
+      "unique_guid": "138a6db9-1032-451d-91e9-0fa38ff94fbb"
+    },
+    {
+      "name": "kb",
+      "first_lba": 282624,
+      "sectors": 4096,
+      "attributes": 0,
+      "type_guid": "ebd0a0a2-b9e5-4433-87c0-68b6b72699c7",
+      "unique_guid": "756d934c-50e3-4c91-af46-02d824169ca7"
+    },
+    {
+      "name": "dkb",
+      "first_lba": 286720,
+      "sectors": 8192,
+      "attributes": 0,
+      "type_guid": "ebd0a0a2-b9e5-4433-87c0-68b6b72699c7",
+      "unique_guid": "a3f3c267-5521-42dd-a724-3bdec20c7c6f"
+    },
+    {
+      "name": "flashinfo",
+      "first_lba": 30501888,
+      "sectors": 32768,
+      "attributes": 0,
+      "type_guid": "ebd0a0a2-b9e5-4433-87c0-68b6b72699c7",
+      "unique_guid": "e195a981-e285-4734-8025-ec323e9589d9"
+    },
+    {
+      "name": "system",
+      "first_lba": 557056,
+      "sectors": 29944832,
+      "attributes": 0,
+      "type_guid": "ebd0a0a2-b9e5-4433-87c0-68b6b72699c7",
+      "unique_guid": "a0d65bf8-e8de-4107-9434-1d318c843d37"
+    }
+  ],
+  "description": "128 MiB boot at 144 MiB; bootchain/calibration offsets retained; Android data partitions replaced by system root area."
+}

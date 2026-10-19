@@ -11,7 +11,7 @@ import zlib
 from pathlib import Path
 
 MTK_MAGIC = 0x58881688
-PARTITION_SIZE = 16 * 1024 * 1024
+PARTITION_SIZE = 128 * 1024 * 1024
 REQUIRED_BOOTOPT = b'bootopt=64S3,32N2,64N2'
 
 
@@ -117,15 +117,15 @@ def source_template(dtb, config):
     return bytes(header) + b''.join(pad(part, page) for part in parts)
 
 
-def build_from_source(dtb, shim, config):
-    image, manifest = build(source_template(dtb, config), shim)
+def build_from_source(dtb, shim, config, kernel_payload=None):
+    image, manifest = build(source_template(dtb, config), shim, kernel_payload)
     del manifest['template_sha256']
     del manifest['template_id_valid']
     manifest['input_kind'] = 'tracked DTS and board configuration'
     return image, manifest
 
 
-def build(template, shim):
+def build(template, shim, kernel_payload=None):
     fields, (old_kernel, old_ramdisk), input_id_ok = parse(template)
     _, dtb, _ = split_kernel(old_kernel[512:])
     if len(shim) < 64 or shim[56:60] != b'ARM\x64':
@@ -133,7 +133,10 @@ def build(template, shim):
     if struct.unpack_from('<Q', shim, 16)[0] != len(shim) or len(shim) > 0x1000000:
         raise ValueError('invalid shim Image size')
     kernel = section(old_kernel[:512], pad(gzip_deterministic(shim), 512) + dtb)
-    ramdisk = section(old_ramdisk[:512], gzip_deterministic(empty_cpio()))
+    if kernel_payload is not None and (len(kernel_payload) > PARTITION_SIZE or
+            kernel_payload[:8] not in (b'A04XNU01',)):
+        raise ValueError('invalid or oversized XNU payload')
+    ramdisk = section(old_ramdisk[:512], gzip_deterministic(empty_cpio()) if kernel_payload is None else kernel_payload)
     # Fresh Android header: retain the explicitly configured preloader bootopt
     # and load addresses, clear vendor extension data and Android OS version.
     header = bytearray(fields[7])
@@ -151,21 +154,25 @@ def build(template, shim):
     header[576:608] = digest.digest().ljust(32, b'\0')
     image = bytes(header) + pad(kernel, fields[7]) + pad(ramdisk, fields[7])
     if len(image) > PARTITION_SIZE:
-        raise ValueError('image exceeds 16 MiB boot partition')
+        raise ValueError('image exceeds 128 MiB boot partition')
     _, (check_kernel, check_ramdisk), id_ok = parse(image)
     raw, check_dtb, compressed_size = split_kernel(check_kernel[512:])
     if not id_ok or raw != shim or check_dtb != dtb:
         raise ValueError('generated image did not round-trip')
     if check_kernel[512 + ((compressed_size + 511) // 512) * 512:] != dtb:
         raise ValueError('DTB is not at the required 512-byte boundary')
-    if zlib.decompress(check_ramdisk[512:], 31) != empty_cpio():
-        raise ValueError('ramdisk did not round-trip')
+    if kernel_payload is None:
+        if zlib.decompress(check_ramdisk[512:], 31) != empty_cpio():
+            raise ValueError('ramdisk did not round-trip')
+    elif check_ramdisk[512:] != kernel_payload:
+        raise ValueError('XNU payload did not round-trip')
     manifest = dict(kind='a04br3-diagnostic-boot', template_sha256=sha256(template),
                     template_id_valid=input_id_ok, shim_sha256=sha256(shim),
                     dtb_sha256=sha256(dtb), boot_sha256=sha256(image),
                     boot_bytes=len(image), kernel_load_address=fields[1],
                     page_bytes=fields[7], mtk_header_bytes=512,
                     preloader_bootopt=REQUIRED_BOOTOPT.decode('ascii'),
+                    kernel_payload_present=kernel_payload is not None,
                     hardware_tested=False, xnu_boot_verified=False)
     return image, manifest
 

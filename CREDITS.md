@@ -24,3 +24,10 @@ Porting reference: https://github.com/dipa-studio/ios-sweet,
 commit `fdad0de8dc0e75c5ea84762adc03f7232dc91f19`. Its source tree is not
 imported here. Apple XNU source and its original licenses live in the separate
 kernel repository. No upstream Git history was imported into these repositories.
+
+The payload format and GPT generator are original MIT-licensed port source.
+Mach-O and boot ABI reference: Apple XNU `xnu-8796.141.3`,
+https://github.com/apple-oss-distributions/xnu/tree/xnu-8796.141.3 .
+The Android rollback layout records the existing A04BR3 AOSP port partition
+definition; the XNU layout retains its required boot-chain locations and LK
+attributes. No calibration data or proprietary boot images are included.
