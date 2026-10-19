@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "746fefc04f54fdc3790b82fe85f367cb06253974",
-    "role": "A04BR3 allocator RNG and built-in HMAC-SHA256 PRNG"
+    "commit": "640547d475134e9aca18f151575b6e1351087deb",
+    "role": "Explicit unavailable Image4/AMFI trust-cache service"
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
