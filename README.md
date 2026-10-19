@@ -1,3 +1,5 @@
+> **Work in progress / 作業中:** Experimental XNU port for Benesse TAB-A04-BR3 (MT8167). XNU entry has been observed, but the device currently watchdog-reboots; a working OS is not available.
+
 # TAB-A04-BR3 XNU device sources
 
 This repository contains board source, MTK boot packaging, raw source-kernel
@@ -15,8 +17,8 @@ corrects the 39-bit virtual layout and still needs hardware verification.
 * This repository: DTS, board configuration, MTK/Android image construction,
   build scripts and packaging tests.
 
-All three repositories are private. A person with access can reproduce this
-stage using their contents. The diagnostic does not use kernel-repository code.
+All three repositories are public and under active development. This stage
+can be reproduced using their contents. The diagnostic does not use kernel-repository code.
 `sources.lock.json` records the exact sibling revisions for this stage.
 
 ## Build from repository contents
