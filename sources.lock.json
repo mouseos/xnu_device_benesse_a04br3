@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "2832ba8e1b8f965da2cde5b0a83f44ca37769d08",
-    "role": "A04BR3 kernel with early MMU checkpoints and MT8167 polling UART"
+    "commit": "9ef02934c6b3f30ee27dee6d5ec3d004fb6a464e",
+    "role": "A04BR3 kernel with MT8167 UART retained across TTBR0 teardown"
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
