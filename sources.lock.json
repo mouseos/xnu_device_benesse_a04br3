@@ -1,11 +1,11 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "69a7d6a0393e7293cc31c0aba345260c96dc18ec",
-    "role": "Source-built A04BR3 ARM64 kernel with 39-bit bootstrap virtual layout"
+    "commit": "2832ba8e1b8f965da2cde5b0a83f44ca37769d08",
+    "role": "A04BR3 kernel with early MMU checkpoints and MT8167 polling UART"
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
-    "commit": "67ccb7c9fab5b224d9a506f570df5ffe13428674"
+    "commit": "4b88988d353e4d5230d6555c93cbfd64b8d9d6ce"
   }
 }

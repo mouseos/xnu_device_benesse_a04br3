@@ -3,7 +3,7 @@
   "CREDITS.md": "44ac618429dceff1e3f21a243f87fa6b2a1274f21adcee7edfc4d288a5387dd6",
   "LICENSE": "223edc952a5d761298c99fad52e53c28114bd2ed7b52c4467f6ba647f759f815",
   "README.md": "ec1165c1d22a6fcb1e993caa68abd0c4b1cd0b18708cb43fc70cd588dcdf8d61",
-  "adt.c": "f194cfffaeabf9769c7ec424d7e194ab20c9e87281a81b9ff9d829bcd87543c4",
+  "adt.c": "1147da13d87b57dc8d4b97df6c0198810877c1cfe0c5e5a107f31a222cb2b760",
   "build.sh": "57be454dbd7d8dec35efaf97f3ed133f8edcbba52c167f051bc10ea351fbcd00",
   "fdt.c": "81d8621d62f6b9777fa21951c68de4f2f3b683b8d179fc3435ec46ee54c43d76",
   "fdt.h": "c9f7da9d14be4f02b7aa23d64695ca05c450b7e540b246fedad0c78648b97c31",
@@ -14,5 +14,5 @@
   "start.S": "a3c2a139f95934d554dd783edce2e701f866b04c9d0795c7e172c31a427b0c44",
   "tests/fdt-fixture.dts": "e6625fcace24ee9d5bec0f511e861bccdb519ad38025315663a98b35910c7208",
   "tests/test_fdt.py": "e91799e9bd381833df81b07d5227bc79423f4b20df17c1758953ed280726528a",
-  "tests/test_handoff.py": "fff85bcc319ebe27fe519a4a4cd1a85837fc13e2cc8773a63ecb236eaa161fed"
+  "tests/test_handoff.py": "6ac69d02cb90f76af9535985dbdeb2b12335bd51f8cb5de4c4540c328671e019"
 }
