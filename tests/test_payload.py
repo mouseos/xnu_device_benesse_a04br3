@@ -67,6 +67,13 @@ class PayloadTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             build(bytes(data))
 
+    def test_kernel_outside_39_bit_bootstrap_range_rejected(self):
+        data = bytearray(kernel_fixture())
+        struct.pack_into('<Q', data, 32 + 24, 0xfffffe0007004000)
+        struct.pack_into('<Q', data, 32 + 72 + 16 + 32 * 8, 0xfffffe0007005000)
+        with self.assertRaises(ValueError):
+            build(bytes(data))
+
     def test_bounds_and_memory_limit(self):
         for length in (0, 31, 100, 0x3fff):
             with self.assertRaises(ValueError):

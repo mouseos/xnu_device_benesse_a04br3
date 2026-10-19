@@ -2,7 +2,9 @@
 
 This repository contains board source, MTK boot packaging, raw source-kernel
 payload generation and GPT layout generation. The current stage targets entry
-into a source-built XNU kernel. Hardware acceptance is still pending.
+into a source-built XNU kernel. Initial kernel entry has been observed on
+hardware; the previous image then faulted after MMU enable. This revision
+corrects the 39-bit virtual layout and still needs hardware verification.
 
 ## Repository roles
 
@@ -154,3 +156,9 @@ install the backup copy automatically. Do not use the new larger image on the
 old 16 MiB boot layout. On-device geometry, relocated-boot lookup and a complete
 LK/TEE restoration procedure must be verified before applying this layout.
 These source tools never invoke mtkclient or write a device.
+
+The A04BR3 bootstrap uses T1SZ=25 (39-bit upper virtual addresses). Both the
+payload builder and shim reject lower, noncanonical kernel windows. The kernel
+target uses the normal ARM64 link base 0xfffffff007004000 and disables the Apple
+MacOSX large-memory VA layout. The previous 0xfffffe0007004000 link base was
+outside that bootstrap range; it must not be reused with this board setup.

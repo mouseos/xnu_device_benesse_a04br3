@@ -149,7 +149,7 @@ def build(kernel, phys_base=0x60000000, mem_size=0x18000000,
     segments, entry, fixups = macho(data)
     resolved = resolve_chains(data, segments, fixups)
     virtual = segments[0]['va'] & ~0x1ffffff
-    if virtual < 0xffff000000000000 or phys_base & 0x1ffffff or not mem_size or mem_size & (PAGE - 1):
+    if virtual < 0xffffff8000000000 or phys_base & 0x1ffffff or not mem_size or mem_size & (PAGE - 1):
         raise ValueError('invalid kernel virtual/physical memory window')
     command = cmdline.encode('ascii')
     if len(command) >= 608 or b'\0' in command:
