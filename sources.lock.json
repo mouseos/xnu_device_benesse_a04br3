@@ -6,6 +6,6 @@
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
-    "commit": "fd41e9dc981306287011aa33dae0a34a19da268c"
+    "commit": "39cb26bb230996a1033b8cc79e05337305478216"
   }
 }
