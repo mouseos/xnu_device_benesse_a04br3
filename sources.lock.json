@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "37ff42ecb083f4eee312e255541dfea5280921fb",
-    "role": "Compact zone VA reservation for 39-bit A04BR3"
+    "commit": "40a8c4424e40a711af01da507bc79d126ff7227b",
+    "role": "Cortex-A35 kernel and firehose library; no LSE dependency"
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
