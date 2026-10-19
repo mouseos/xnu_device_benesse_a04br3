@@ -1,11 +1,11 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "34d5ce72236e7d22d836af709baf0165c7c087e5",
-    "role": "Apple XNU baseline; not loaded by the diagnostic shim"
+    "commit": "88dd489fb5f7793ffd47e75ef9a1f8baad0ff086",
+    "role": "Initial A04BR3 CPU source target; not loaded by the EL1 diagnostic"
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
-    "commit": "7d3added5502b82ea6f5c6840656a2bbfde4dd56"
+    "commit": "57d08418967ac60c980381d33eccf61092d3ff29"
   }
 }
