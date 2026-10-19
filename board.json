@@ -1,0 +1,22 @@
+{
+  "model": "TAB-A04-BR3",
+  "soc": "MT8167",
+  "cpu": "cortex-a35",
+  "cores": 4,
+  "uart_physical_address": "0x11005000",
+  "uart_baud_inherited_from_lk": 921600,
+  "boot_partition_bytes": 16777216,
+  "kernel_load_address": "0x40080000",
+  "initial_stage": "UART diagnostic; no XNU launch",
+  "partition_changes_required_for_diagnostic": false,
+  "boot_image": {
+    "page_bytes": 2048,
+    "kernel_addr": "0x40080000",
+    "ramdisk_addr": "0x47000000",
+    "second_addr": "0x40f00000",
+    "tags_addr": "0x4e000000",
+    "header_version": 0,
+    "mtk_header_fill": 255,
+    "kernel_gzip_alignment": 512
+  }
+}
