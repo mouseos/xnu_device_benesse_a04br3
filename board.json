@@ -23,6 +23,6 @@
   "xnu_handoff": {
     "physical_base": "0x60000000",
     "managed_size": "0x18000000",
-    "cmdline": "-v serial=3 debug=0x14e keepsyms=1 cpus=1"
+    "cmdline": "-v serial=3 debug=0x14e keepsyms=1 cpus=1 -noprogress"
   }
 }
