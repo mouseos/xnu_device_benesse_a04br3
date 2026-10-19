@@ -17,6 +17,7 @@
     "tags_addr": "0x4e000000",
     "header_version": 0,
     "mtk_header_fill": 255,
-    "kernel_gzip_alignment": 512
+    "kernel_gzip_alignment": 512,
+    "cmdline": "bootopt=64S3,32N2,64N2"
   }
 }

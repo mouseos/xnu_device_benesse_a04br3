@@ -19,6 +19,7 @@ def template():
         sections.append(section(header, payload))
     header = bytearray(2048)
     header[:8] = b'ANDROID!'
+    header[64:86] = b'bootopt=64S3,32N2,64N2'
     struct.pack_into('<10I', header, 8, len(sections[0]), 0x40080000,
                      len(sections[1]), 0x47000000, 0, 0x40f00000,
                      0x4e000000, 2048, 0, 0)
@@ -58,6 +59,30 @@ class BootImageTests(unittest.TestCase):
         self.assertEqual(parts[1][40:512], b'\xff' * 472)
         self.assertEqual(manifest['input_kind'], 'tracked DTS and board configuration')
         self.assertNotIn('template_sha256', manifest)
+
+    def test_preloader_sees_nonsecure_64bit_boot_at_fixed_offset(self):
+        board = json.loads((Path(__file__).resolve().parents[1] / 'board.json').read_text())
+        _, parts, _ = parse(template())
+        _, dtb, _ = split_kernel(parts[0][512:])
+        image, _ = build_from_source(dtb, shim(), board['boot_image'])
+        # Follow platform_parse_bootopt's fixed offsets, not a substring search.
+        self.assertEqual(image[0x40:0x48], b'bootopt=')
+        self.assertEqual(image[0x48:0x4c], b'64S3')
+        self.assertEqual(image[0x4d:0x51], b'32N2')
+        self.assertEqual(image[0x52:0x56], b'64N2')
+
+    def test_missing_or_moved_bootopt_rejected(self):
+        board = json.loads((Path(__file__).resolve().parents[1] / 'board.json').read_text())
+        _, parts, _ = parse(template())
+        _, dtb, _ = split_kernel(parts[0][512:])
+        for cmdline in ('', 'bootopt=64S3,32S1,32S1', 'console=ttyS0 bootopt=64S3,32N2,64N2'):
+            config = dict(board['boot_image'], cmdline=cmdline)
+            with self.subTest(cmdline=cmdline), self.assertRaises(ValueError):
+                build_from_source(dtb, shim(), config)
+        bad = bytearray(template())
+        bad[64:576] = bytes(512)
+        with self.assertRaises(ValueError):
+            build(bytes(bad), shim())
 
     def test_bad_template_layout_rejected(self):
         for offset, value in ((8, 0xffffffff), (12, 0x80000),

@@ -12,6 +12,16 @@ from pathlib import Path
 
 MTK_MAGIC = 0x58881688
 PARTITION_SIZE = 16 * 1024 * 1024
+REQUIRED_BOOTOPT = b'bootopt=64S3,32N2,64N2'
+
+
+def checked_cmdline(value):
+    data = value.encode('ascii')
+    # MT8167 preloader reads offset 0x40 directly, before LK loads our payload.
+    # An absent prefix selects 64S3,32S1,32S1 instead of the working NS boot.
+    if data.split(b' ', 1)[0] != REQUIRED_BOOTOPT or len(data) >= 512:
+        raise ValueError('A04BR3 command line must start with bootopt=64S3,32N2,64N2')
+    return data
 
 
 def pad(data, alignment):
@@ -98,6 +108,8 @@ def source_template(dtb, config):
         raise ValueError('unsupported boot page size')
     header = bytearray(page)
     header[:8] = b'ANDROID!'
+    cmdline = checked_cmdline(config.get('cmdline', ''))
+    header[64:64 + len(cmdline)] = cmdline
     struct.pack_into('<10I', header, 8, len(parts[0]), int(config['kernel_addr'], 0),
                      len(parts[1]), int(config['ramdisk_addr'], 0), 0,
                      int(config['second_addr'], 0), int(config['tags_addr'], 0),
@@ -122,14 +134,16 @@ def build(template, shim):
         raise ValueError('invalid shim Image size')
     kernel = section(old_kernel[:512], pad(gzip_deterministic(shim), 512) + dtb)
     ramdisk = section(old_ramdisk[:512], gzip_deterministic(empty_cpio()))
-    # Fresh Android header: retain load addresses/page size, clear command line,
-    # name, vendor extension data, and Android OS version (this is a diagnostic).
+    # Fresh Android header: retain the explicitly configured preloader bootopt
+    # and load addresses, clear vendor extension data and Android OS version.
     header = bytearray(fields[7])
     header[:8] = b'ANDROID!'
     new_fields = list(fields)
     new_fields[0], new_fields[2], new_fields[9] = len(kernel), len(ramdisk), 0
     struct.pack_into('<10I', header, 8, *new_fields)
     header[48:64] = b'xnu-a04br3'.ljust(16, b'\0')
+    cmdline = checked_cmdline(template[64:576].split(b'\0', 1)[0].decode('ascii'))
+    header[64:64 + len(cmdline)] = cmdline
     digest = hashlib.sha1()
     for data in (kernel, ramdisk, b''):
         digest.update(data)
@@ -151,6 +165,7 @@ def build(template, shim):
                     dtb_sha256=sha256(dtb), boot_sha256=sha256(image),
                     boot_bytes=len(image), kernel_load_address=fields[1],
                     page_bytes=fields[7], mtk_header_bytes=512,
+                    preloader_bootopt=REQUIRED_BOOTOPT.decode('ascii'),
                     hardware_tested=False, xnu_boot_verified=False)
     return image, manifest
 

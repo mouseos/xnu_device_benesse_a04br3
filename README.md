@@ -30,7 +30,7 @@ directory, obtain the device source and its locked shim source without cloning:
 
 ```sh
 mkdir device bootshim
-gh api repos/mouseos/xnu_device_benesse_a04br3/tarball/v0.1-diagnostic > device.tar.gz
+gh api repos/mouseos/xnu_device_benesse_a04br3/tarball/v0.1.1-diagnostic > device.tar.gz
 tar -xzf device.tar.gz --strip-components=1 -C device
 shim_revision=$(python3 -c 'import json; print(json.load(open("device/sources.lock.json"))["bootshim"]["commit"])')
 gh api "repos/mouseos/xnu_bootshim_benesse_a04br3/tarball/$shim_revision" > bootshim.tar.gz
@@ -67,6 +67,10 @@ The framing follows the working AOSP device source's
 `tools/mtk_wrap_bootimg.py` and the EDK2 A04BR3 packager:
 
 * Android boot header v0, 2048-byte page size, configured load addresses.
+* `bootopt=64S3,32N2,64N2` starts at Android header offset `0x40`. MT8167
+  preloader parses these fixed bytes before LK loads the image. Removing or
+  moving this prefix selects secure 32-bit defaults and can crash LK at its
+  ATF-log SMC, before any shim code executes. The builder rejects that layout.
 * Both kernel and ramdisk have a 512-byte section header with magic
   `0x58881688`, payload length and `KERNEL` / `ROOTFS` name, then `0xff` fill.
 * Kernel payload is `gzip -n -9` of the source-built shim, zero padding to a
