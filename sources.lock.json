@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "55df45fae0fc76d1aed665b07289fec0b3bba945",
-    "role": "Release temporary UART alias before zone allocation"
+    "commit": "746fefc04f54fdc3790b82fe85f367cb06253974",
+    "role": "A04BR3 allocator RNG and built-in HMAC-SHA256 PRNG"
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
