@@ -6,5 +6,5 @@ current-version: 1319.0.0
 compatibility-version: 1.0.0
 exports:
   - archs: [ arm64 ]
-    symbols: [ _malloc, _free, _write, _getpid, _clock_gettime ]
+    symbols: [ _malloc, _free, _write, _getpid, _clock_gettime, _pthread_create, _pthread_join, _pthread_mutex_lock, _pthread_mutex_unlock, _pthread_cond_wait, _pthread_cond_signal, _dispatch_once_f, _CC_SHA512, _memcmp ]
 ...

@@ -1,0 +1,82 @@
+name: A04BR3 userspace probes
+on:
+  workflow_dispatch:
+    inputs:
+      keep_ssh:
+        description: Keep SSH available for repairs after the build (bounded to 60 minutes)
+        type: boolean
+        default: false
+permissions:
+  contents: read
+  statuses: write
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 360
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_15.4.app/Contents/Developer
+    steps:
+      - name: Copy this source revision without Git history
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir source out
+          curl -fL -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/repos/${{ github.repository }}/tarball/${{ github.sha }}" -o "$RUNNER_TEMP/source.tar.gz"
+          tar -xzf "$RUNNER_TEMP/source.tar.gz" --strip-components=1 -C source
+      - name: Start persistent public-key SSH session
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl -fL https://github.com/owenthereal/upterm/releases/download/v0.38.0/upterm_darwin_arm64.tar.gz -o "$RUNNER_TEMP/upterm.tar.gz"
+          echo "8258498167a8e7671680699f765c4cdf6814fe957256ac3fc7452cbd5ad1366f  $RUNNER_TEMP/upterm.tar.gz" | shasum -a 256 -c -
+          mkdir -p "$RUNNER_TEMP/upterm-bin"
+          tar -xzf "$RUNNER_TEMP/upterm.tar.gz" -C "$RUNNER_TEMP/upterm-bin"
+          export PATH="$RUNNER_TEMP/upterm-bin:$PATH"
+          echo "$RUNNER_TEMP/upterm-bin" >> "$GITHUB_PATH"
+          upterm host --server wss://uptermd.upterm.dev --detach --accept --skip-host-key-check --name a04br3 --authorized-keys "$PWD/source/build-support/debug.pub" --force-command "bash --noprofile --norc -i" -o json -- sleep 21000 > out/ssh-session.json
+          cat out/ssh-session.json
+          python3 - <<'PYTHON'
+          import json, os, subprocess
+          session=json.load(open('out/ssh-session.json'))
+          command=session['sshCommand']
+          if len(command)>140:
+              raise SystemExit('SSH descriptor exceeds status API limit')
+          subprocess.run(['gh','api','--method','POST',f"repos/{os.environ['GITHUB_REPOSITORY']}/statuses/{os.environ['GITHUB_SHA']}",'-f','state=pending','-f','context=a04br3/ssh','-f',f'description={command}'],check=True,stdout=subprocess.DEVNULL)
+          PYTHON
+      - name: Build committed userspace probes
+        id: kernel
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          bash source/tools/build-dynamic-probe.sh "$PWD/out/probes" 2>&1 | tee out/build.log
+      - name: Preserve build products and logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: a04br3-probes-${{ github.sha }}
+          path: |
+            out/probes/a04br3-init
+            out/probes/dynamic-probe
+            out/build.log
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Keep the same environment for SSH repairs
+        if: ${{ !cancelled() && inputs.keep_ssh }}
+        run: |
+          echo "SSH repair environment retained. End with: touch /tmp/a04br3-debug-done"
+          # A disconnected guest must not terminate the hosting command.
+          # Conversely, do not bill for a dead SSH host until the deadline.
+          (upterm session wait a04br3 || true; touch /tmp/a04br3-debug-done) &
+          host_watch_pid=$!
+          deadline=$((SECONDS + 3600))
+          while [ ! -f /tmp/a04br3-debug-done ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 60; done
+          kill "$host_watch_pid" 2>/dev/null || true
+          upterm session stop a04br3 || true
+      - name: Report the automated build result
+        if: always()
+        env:
+          BUILD_OUTCOME: ${{ steps.kernel.outcome }}
+        run: |
+          test "$BUILD_OUTCOME" = success
