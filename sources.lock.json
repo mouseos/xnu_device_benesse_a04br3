@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "924ecd8903d8b806b460596bf4034ee5f26f4593",
-    "role": "Bounded multi-block writes and low-load changed-pixel software display"
+    "commit": "bcaaf6b12be9083917bfcf40c3fc02d509e8070a",
+    "role": "Late LaunchServices and migration wait capture with low-load performance profile"
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
