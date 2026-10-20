@@ -31,5 +31,5 @@ class RangeView(unittest.TestCase):
                 with self.assertRaises(OSError) as failure:os.open(mount/'first.bin',os.O_WRONLY)
                 self.assertIn(failure.exception.errno,(errno.EROFS,errno.EACCES))
             finally:subprocess.run(['fusermount','-u',str(mount)],check=True)
-            manifest.write_text('1 ffffffff bad.bin\n')
+            manifest.write_text('1 fffffffffffffff0 bad.bin\n')
             self.assertNotEqual(subprocess.run([str(program),str(image),str(manifest),str(mount)]).returncode,0)
