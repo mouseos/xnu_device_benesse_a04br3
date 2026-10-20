@@ -201,7 +201,9 @@ dynamic_child:
     adr x0, dynamic_path
     sub sp, sp, #32
     stp x0, xzr, [sp]
-    str xzr, [sp, #16]
+    adr x3, cache_environment
+    str x3, [sp, #16]
+    str xzr, [sp, #24]
     mov x1, sp
     add x2, sp, #16
     mov x16, #59 /* execve */
@@ -274,3 +276,6 @@ hex_digits:
     .ascii "0123456789abcdef"
 newline:
     .ascii "\n"
+
+cache_environment:
+    .asciz "DYLD_SHARED_CACHE_DIR=/System/Library/Caches/com.apple.dyld"

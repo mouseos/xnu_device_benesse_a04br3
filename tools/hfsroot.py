@@ -54,6 +54,10 @@ def populate(image, files, volume='A04BR3Root'):
         bt=bytearray(old[offsets[0]:offsets[1]])
         if len(bt)!=106 or get32(bt,22)*node_size!=catalog_size: raise ValueError('unexpected catalog header')
         dirs={PurePosixPath('/'):2};next_id=16
+        for directory in ('/dev','/tmp','/private/var'):
+            path=PurePosixPath(directory)
+            for parent in reversed([path]+list(path.parents)[:-1]):
+                if parent not in dirs: dirs[parent]=next_id;next_id+=1
         normalized={}
         for name,source in files.items():
             path=PurePosixPath(name)
@@ -74,7 +78,7 @@ def populate(image, files, volume='A04BR3Root'):
         for path,identifier in dirs.items():
             parent=1 if identifier==2 else dirs[path.parent];name=volume if identifier==2 else path.name
             children=sum(x.parent==path for x in list(dirs)+list(normalized) if x!=path)
-            rec=struct.pack('>HHII5I',1,0,children,identifier,*([timestamp]*4),0)+bsd(0o040755)+bytes(40)
+            rec=struct.pack('>HHII5I',1,0,children,identifier,*([timestamp]*4),0)+bsd(0o041777 if str(path)=='/tmp' else 0o040755)+bytes(40)
             assert len(rec)==88;add(parent,name,rec);thread(identifier,parent,name,True)
         for path,source in sorted(normalized.items(),key=lambda p:str(p[0])):
             length=source.stat().st_size;blocks=(length+block-1)//block

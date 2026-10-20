@@ -204,3 +204,35 @@ The unsigned development HFS root uses the explicit
 `a04br3.unsealed_root=1` argument supplied by `--emmc-root`. Only unsupported
 HFS root-authentication ioctls are allowed; a reported authentication failure
 remains fatal. This does not establish an Apple verified boot chain.
+
+Dyld child probe (original iPhone X iOS 16.7.16, build 20H392):
+
+1. Run `bash tools/build-dynamic-probe.sh OUT` on the declared macOS/Xcode
+   host. It builds the static diagnostic PID 1 and an iOS arm64 executable
+   importing malloc/free/write/getpid/clock_gettime from libSystem. The stub
+   is source text, not a copy of Apple runtime code. The child runs through
+   `/usr/lib/dyld`; PID 1 polls its status and continues its heartbeat.
+2. Obtain the iPhone10,3/iPhone10,6 16.7.16 20H392 restore IPSW locally.
+   Read its BuildManifest.plist, select the d22ap identity, and extract the
+   `OS` and `Cryptex1,SystemOS` DMG paths from that identity's Manifest.
+   Mount/read those APFS volumes read-only with apfs-fuse. Copy the original
+   OS `/usr/lib/dyld` to `ARTIFACTS/macho/dyld`, and every
+   `System/Library/Caches/com.apple.dyld/dyld_shared_cache_arm64*` file from
+   SystemOS to `ARTIFACTS/cache/`. No userland binary patches or reconstructed
+   cache-library exports are used in the boot root.
+3. On Linux install `hfsprogs` (tested 540.1.linux3-5build3), then run
+   `python3 tools/prepare-dyld-root.py --artifacts ARTIFACTS --probes OUT --out ROOT`.
+   It creates an unmounted 4 GiB HFS+ image, writes a source-generated catalog
+   and allocation bitmap with original donor file data, and runs fsck read-only.
+   The generator is limited to this small ASCII-name, regular-file tree;
+   it rejects metadata layouts requiring overflow extents/node maps.
+4. Package the existing source kernel with `--emmc-root --dyld-probe`, and
+   write the generated HFS to userdata plus the matching boot image. The
+   explicit development option permits iOS binaries in this macOS-targeted
+   XNU configuration and chooses ignition level 1. Donor binaries, cache
+   files, and generated filesystems stay outside all source repositories.
+
+Linux without sudo can extract hfsprogs' deb and invoke its mkfs/fsck by
+absolute path (`--mkfs` and `--fsck`); no kernel filesystem mount is needed.
+The static init can also be rebuilt with Clang targeting arm64-apple-ios16.0
+and `tools/mkinit.py`, using the same checked-in assembly.
