@@ -32,10 +32,13 @@ def main():
     parser.add_argument('--bootshim', type=Path, default=ROOT.parent / 'bootshim')
     parser.add_argument('--out', type=Path, default=ROOT.parent / 'out' / 'diagnostic')
     parser.add_argument('--kernel', type=Path)
+    parser.add_argument('--rootfs', type=Path, help='Raw source-generated HFS+ root RAMDisk')
     parser.add_argument('--bringup-init', action='store_true', help='Build minimal PID 1 and boot it through mockfs/md0')
     parser.add_argument('--kernel-build-json', type=Path)
     args = parser.parse_args()
-    if args.bringup_init and not args.kernel:
+    if args.rootfs and args.bringup_init:
+        parser.error('choose --rootfs or --bringup-init')
+    if (args.bringup_init or args.rootfs) and not args.kernel:
         parser.error('--bringup-init requires --kernel')
     lock = json.loads((ROOT / 'sources.lock.json').read_text())
     shim_root = args.bootshim.resolve()
@@ -75,8 +78,13 @@ def main():
             root_image = mkinit.build(obj.read_bytes())
             (destination / 'a04br3-init').write_bytes(root_image)
             cmdline += ' rd=md0'
+        if args.rootfs:
+            root_image = args.rootfs.read_bytes()
+            if root_image[1024:1026] not in (b'H+', b'HX'):
+                parser.error('--rootfs must be a raw HFS+ volume')
+            cmdline += ' rd=md0'
         raw, kernel_info = payload.build(kernel, int(memory['physical_base'], 0),
-                                         int(memory['managed_size'], 0), cmdline, ramdisk=root_image)
+                                         int(memory['managed_size'], 0), cmdline, ramdisk=root_image, compact_ramdisk=bool(args.rootfs))
         packed = raw
         kernel_info.update(source_build=provenance,
                            payload_bytes=len(packed), kernel_sha256=sha256(kernel))

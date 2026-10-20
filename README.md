@@ -172,3 +172,13 @@ Mach-O and the payload includes it as a RAMDisk. `rd=md0` selects Apple's
 built-in memory device and mockfs exposes it as `/sbin/launchd`. This PID 1
 prints a banner and periodic heartbeat through `/dev/console`; it does not
 provide an iOS or macOS environment. No prebuilt executable is required.
+
+For a regular-file diagnostic root, run `python3 tools/mkhfsroot.py --out DIR`
+on macOS with the declared Xcode toolchain, then pass its `hfs-root.img` as
+`tools/build.py --rootfs IMAGE` instead of `--bringup-init`. The checked-in
+script builds PID 1, creates HFS+ using hdiutil, and includes the marker
+`/etc/a04br3-stage`. The diagnostic PID 1 reads and prints that marker.
+Filesystem UUIDs/timestamps are assigned by hdiutil; reconstruction uses the
+same sources and steps but does not promise a byte-identical HFS image.
+Payload v3 encodes zero runs in the RAMDisk and validates all bounds before
+loading. The physical boot image must still fit the actual 16 MiB partition.

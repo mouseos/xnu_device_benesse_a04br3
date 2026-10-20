@@ -5,6 +5,7 @@
 import argparse
 from pathlib import Path
 import struct
+import re
 
 PAGE = 0x4000
 HEADER = struct.Struct('<8sII8Q608s')
@@ -143,8 +144,23 @@ def resolve_chains(data, segments, fixups):
     return fixed
 
 
+def sparse_encode(data):
+    """Deterministic literal/zero runs; no external compression dependency."""
+    out = bytearray()
+    at = 0
+    for match in re.finditer(b'\x00{32,}', data):
+        if match.start() > at:
+            literal = data[at:match.start()]
+            out += struct.pack('<I', len(literal)) + literal
+        out += struct.pack('<I', 0x80000000 | (match.end() - match.start()))
+        at = match.end()
+    if at < len(data):
+        out += struct.pack('<I', len(data)-at) + data[at:]
+    return bytes(out)
+
+
 def build(kernel, phys_base=0x60000000, mem_size=0x18000000,
-          cmdline='-v serial=3 debug=0x14e keepsyms=1 cpus=1', ramdisk=None):
+          cmdline='-v serial=3 debug=0x14e keepsyms=1 cpus=1', ramdisk=None, compact_ramdisk=False):
     data = bytearray(kernel)
     segments, entry, fixups = macho(data)
     resolved = resolve_chains(data, segments, fixups)
@@ -174,17 +190,23 @@ def build(kernel, phys_base=0x60000000, mem_size=0x18000000,
         payload += data[s['offset']:s['offset'] + s['size']]
         payload += bytes(-len(payload) % 8)
     ramdisk_info = None
+    version = 2 if ramdisk is not None else 1
     if ramdisk is not None:
         rd_size = align(len(ramdisk), PAGE)
         if end_pa + rd_size + 2 * PAGE > phys_base + mem_size:
             raise ValueError('RAMDisk plus ADT/boot_args exceeds managed memory')
+        stored = ramdisk
+        if compact_ramdisk:
+            encoded = sparse_encode(ramdisk + bytes(rd_size-len(ramdisk)))
+            if len(encoded) < len(ramdisk):
+                stored, version = encoded, 3
         SEGMENT.pack_into(payload, HEADER.size + len(segments) * SEGMENT.size,
-                          end_pa, rd_size, len(payload), len(ramdisk))
+                          end_pa, rd_size, len(payload), len(stored))
         ramdisk_info = dict(physical=end_pa, size=rd_size, file_size=len(ramdisk))
-        payload += ramdisk
+        payload += stored
         payload += bytes(-len(payload) % 8)
         end_pa += rd_size
-    HEADER.pack_into(payload, 0, b'A04XNU01', 2 if ramdisk is not None else 1, count, virtual, phys_base,
+    HEADER.pack_into(payload, 0, b'A04XNU01', version, count, virtual, phys_base,
                      mem_size, entry, end_pa, HEADER.size, offset, len(payload), command)
     if len(payload) > 0x8000000:
         raise ValueError('payload exceeds the 128 MiB loader limit')

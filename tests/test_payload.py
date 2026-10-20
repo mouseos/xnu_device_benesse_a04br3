@@ -4,7 +4,7 @@ import struct
 import sys
 import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
-from payload import HEADER, SEGMENT, build
+from payload import HEADER, SEGMENT, build, sparse_encode
 
 
 def kernel_fixture(chain=False, authenticated=False):
@@ -38,6 +38,15 @@ class PayloadTests(unittest.TestCase):
         self.assertEqual((physical, memory, size), (0x61004000, 0x8000, 0x4000))
         self.assertEqual(data[offset:offset + size], kernel_fixture())
         self.assertEqual(info['chained_rebases'], 0)
+
+    def test_sparse_root_disk_fits_without_partition_change(self):
+        root = bytearray(32*1024*1024)
+        root[1024:1026] = b'H+'
+        root[-1024:-1022] = b'H+'
+        blob, info = build(kernel_fixture(), ramdisk=bytes(root), compact_ramdisk=True)
+        self.assertEqual(HEADER.unpack_from(blob)[1], 3)
+        self.assertLess(len(blob), 0x10000)
+        self.assertEqual(info['ramdisk']['size'], len(root))
 
     def test_root_ramdisk_segment_and_bounds(self):
         root = b'root executable' * 100
