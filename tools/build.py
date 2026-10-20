@@ -32,14 +32,17 @@ def main():
     parser.add_argument('--bootshim', type=Path, default=ROOT.parent / 'bootshim')
     parser.add_argument('--out', type=Path, default=ROOT.parent / 'out' / 'diagnostic')
     parser.add_argument('--kernel', type=Path)
+    parser.add_argument('--emmc-root', action='store_true', help='Boot HFS from the GPT userdata partition')
     parser.add_argument('--msdc-probe', action='store_true', help='Probe inherited eMMC using read-only PIO')
     parser.add_argument('--rootfs', type=Path, help='Raw source-generated HFS+ root RAMDisk')
     parser.add_argument('--bringup-init', action='store_true', help='Build minimal PID 1 and boot it through mockfs/md0')
     parser.add_argument('--kernel-build-json', type=Path)
     args = parser.parse_args()
+    if args.emmc_root and (args.rootfs or args.bringup_init):
+        parser.error('--emmc-root cannot include a RAMDisk root')
     if args.rootfs and args.bringup_init:
         parser.error('choose --rootfs or --bringup-init')
-    if (args.bringup_init or args.rootfs) and not args.kernel:
+    if (args.bringup_init or args.rootfs or args.emmc_root) and not args.kernel:
         parser.error('--bringup-init requires --kernel')
     lock = json.loads((ROOT / 'sources.lock.json').read_text())
     shim_root = args.bootshim.resolve()
@@ -84,7 +87,9 @@ def main():
             if root_image[1024:1026] not in (b'H+', b'HX'):
                 parser.error('--rootfs must be a raw HFS+ volume')
             cmdline += ' rd=md0'
-        if args.msdc_probe:
+        if args.emmc_root:
+            cmdline += ' rd=emmcroot0'
+        if args.msdc_probe or args.emmc_root:
             cmdline += ' a04br3.msdc_probe=1'
         raw, kernel_info = payload.build(kernel, int(memory['physical_base'], 0),
                                          int(memory['managed_size'], 0), cmdline, ramdisk=root_image, compact_ramdisk=bool(args.rootfs))

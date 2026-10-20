@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "e965bfec3d004893eb1fa04ba427c7c41dc52b1d",
-    "role": "Fault-safe uio raw eMMC reads"
+    "commit": "f2b19d6a5bfaf5eb0b327861db7e6f91660410e7",
+    "role": "GPT userdata read-only eMMC root"
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",

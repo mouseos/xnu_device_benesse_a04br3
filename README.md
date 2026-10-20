@@ -190,3 +190,12 @@ executed the diagnostic PID 1 and printed the regular file
 panic. This verifies the diagnostic root path, not Apple launchd or an iOS
 or macOS environment. The next image optionally probes inherited MSDC0
 using `--msdc-probe`; eMMC operation is not yet hardware verified.
+
+Persistent diagnostic root: build the same generated HFS image, write it to
+`userdata`, and package the source kernel with `--emmc-root` instead of a
+RAMDisk option. This selects `rd=emmcroot0` and the inherited MSDC0 probe.
+The kernel validates the GPT header and entry-table CRC, finds `userdata`,
+checks its bounds, and exposes only read access through the BSD driver.
+Writing the root image replaces the existing userdata filesystem. The GPT
+and boot-chain partition locations remain unchanged. Root data is generated
+by `tools/mkhfsroot.py`, not a downloaded or patched executable image.
