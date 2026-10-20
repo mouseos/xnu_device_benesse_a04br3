@@ -1,7 +1,7 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "50e943aef4e1904425f642ff4bff67e3c84cb919",
+    "commit": "fd7bba8bfeed4306d06c8e86561486d4068cf16e",
     "role": "MT8167 AUO panel and physical display pipeline initialization"
   },
   "bootshim": {
