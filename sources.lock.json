@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "098b2b8f2bc5343e10afef2922c04798c44f14a3",
-    "role": "A35 SMP/read DMA with tty-triggered samples and bounded mediaserverd crash evidence"
+    "commit": "10507d08f36bf41265829fb9c5945c4ca6bc4f84",
+    "role": "A35 SMP/read DMA with reversible VirtualAudio isolation for media crash diagnosis"
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",

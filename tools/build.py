@@ -50,7 +50,12 @@ def main():
     parser.add_argument('--kernel-build-json', type=Path)
     parser.add_argument("--cpus", type=int, choices=(1, 2, 4), default=1, help="Opt-in A35 SMP development topology; default one CPU")
     parser.add_argument("--emmc-dma", action="store_true", help="Opt-in read descriptor DMA after PIO byte comparison")
+    parser.add_argument("--virtual-audio", choices=("unchanged","disabled","restored"),
+        default="unchanged", help="Reversible development HAL plug-in move before launchd")
     args = parser.parse_args()
+    if args.virtual_audio != "unchanged" and not (args.full_donor_root and args.prepare_development_root):
+        parser.error("--virtual-audio requires full donor root preparation")
+
     if args.emmc_dma and not args.emmc_root:
         parser.error("--emmc-dma requires --emmc-root")
     if args.cpus != 1 and not args.full_donor_root:
@@ -117,6 +122,9 @@ def main():
             cmdline += ' a04br3.full_root=1'
         if args.emmc_dma:
             cmdline += ' a04br3.msdc_dma=1'
+        if args.virtual_audio != "unchanged":
+            cmdline += ' a04br3.no_va=' + ('1' if args.virtual_audio == 'disabled' else '2')
+
         if args.uart_samples:
             cmdline += ' a04br3.sample_uart=1'
         if args.prepare_development_root:

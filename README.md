@@ -456,3 +456,10 @@ comparison with a PIO read of the same sectors. It retains PIO writes and
 inherited card timing. Allocation/probe failure retains PIO; an engine that
 cannot stop panics before its memory could be reused. This option requires
 the locked kernel and `--emmc-root`. Throughput requires physical testing.
+
+`--virtual-audio disabled` moves the donor VirtualAudio bundle from HAL to
+HAL.disabled before launchd starts; `--virtual-audio restored` reverses the move.
+Both require `--full-donor-root --prepare-development-root`; default unchanged.
+The bundle is preserved without executable patching. The move persists on the
+writable root across subsequent boots, so unchanged does not restore it.
+This isolates an unsupported HAL plug-in for diagnosis; it does not provide audio.
