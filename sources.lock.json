@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "4f0065847b8a0febd1de2cac2446330fd8fac180",
-    "role": "Development IOWatchdog contract plus bounded native diagnostics"
+    "commit": "50e943aef4e1904425f642ff4bff67e3c84cb919",
+    "role": "MT8167 AUO panel and physical display pipeline initialization"
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
