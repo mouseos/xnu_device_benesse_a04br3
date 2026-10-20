@@ -79,6 +79,59 @@ _start:
 stage_done:
     add sp, sp, #128
 
+    /* Read the real disk through XNU's raw BSD device, without writing. */
+    adr x0, emmc_path
+    mov x1, #0
+    mov x2, #0
+    mov x16, #SYS_open
+    svc #0x80
+    b.cs emmc_open_failed
+    mov x20, x0
+    mov x1, #512
+    mov x2, #0
+    mov x16, #199 /* lseek */
+    svc #0x80
+    b.cs emmc_seek_failed
+    sub sp, sp, #512
+    mov x0, x20
+    mov x1, sp
+    mov x2, #512
+    mov x16, #SYS_read
+    svc #0x80
+    b.cs emmc_read_failed
+    cmp x0, #512
+    b.ne emmc_read_failed
+    ldr w1, [sp]
+    mov w2, #0x4645
+    movk w2, #0x2049, lsl #16
+    cmp w1, w2
+    b.ne emmc_read_failed
+    ldr w1, [sp, #4]
+    mov w2, #0x4150
+    movk w2, #0x5452, lsl #16
+    cmp w1, w2
+    b.ne emmc_read_failed
+    add sp, sp, #512
+    mov x0, x20
+    mov x16, #6 /* close */
+    svc #0x80
+    adr x1, emmc_ok
+    adr x2, emmc_ok_end
+    sub x2, x2, x1
+    bl write_console
+    b tick
+emmc_read_failed:
+    add sp, sp, #512
+emmc_seek_failed:
+    mov x0, x20
+    mov x16, #6
+    svc #0x80
+emmc_open_failed:
+    adr x1, emmc_bad
+    adr x2, emmc_bad_end
+    sub x2, x2, x1
+    bl write_console
+
 tick:
 	/* select(0, NULL, NULL, NULL, &5s) as a portable sleep */
 	mov	x0, #0
@@ -121,3 +174,12 @@ alive_end:
 
 stage_path:
     .asciz "/etc/a04br3-stage"
+
+emmc_path:
+    .asciz "/dev/remmc0"
+emmc_ok:
+    .ascii "A04BR3 userspace eMMC GPT read: PASS\n"
+emmc_ok_end:
+emmc_bad:
+    .ascii "A04BR3 userspace eMMC GPT read: FAIL\n"
+emmc_bad_end:
