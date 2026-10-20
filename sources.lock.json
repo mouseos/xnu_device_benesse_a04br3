@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "85055a2ec1a5b3e8d01d6bbb106eb8aa4c4ae242",
-    "role": "Native bindfs for firmware mounts; opt-in user core dumps"
+    "commit": "b32d8cfb12eb21a4bb9940710750a10d8050a9c5",
+    "role": "Bounded native daemon state and abnormal exit diagnostics"
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
