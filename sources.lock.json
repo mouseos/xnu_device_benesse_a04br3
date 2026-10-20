@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "640547d475134e9aca18f151575b6e1351087deb",
-    "role": "Explicit unavailable Image4/AMFI trust-cache service"
+    "commit": "cde6f90182c8b310053ae940deb1ec44ea92cccb",
+    "role": "A04BR3 IOKit device-tree platform expert"
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
