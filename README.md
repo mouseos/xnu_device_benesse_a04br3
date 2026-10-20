@@ -443,3 +443,10 @@ it does not supply IOSurface/IOMobileFramebuffer or establish GUI boot.
 The kernel display probe additionally clears all four surfaces to opaque
 black before drawing the RGB band, following the working EDK2 SimpleFbDxe
 contract (PCD Layers=3 is an inclusive upper index).
+
+Opt-in A35 SMP development builds use `tools/build.py --cpus 2` or
+`--cpus 4` with the full donor root profile. One CPU remains the default.
+The locked shim emits the same number of physical Aff0 CPU nodes; the kernel
+starts each through PSCI and verifies SGI1 delivery before publishing readiness.
+SMP compilation and CPU-online logs alone do not verify iOS GUI operation or
+measure boot-time speedup. CPU suspend/restart remains unsupported.
