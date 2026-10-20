@@ -32,7 +32,11 @@ def node(size,kind,height,records,forward=0,backward=0):
     struct.pack_into('>H',result,size-2*(len(records)+1),at)
     return result
 
-def populate(image, files, volume='A04BR3Root', modes=None):
+def populate(image, files, volume='A04BR3Root', modes=None, symlinks=None, directories=()):
+    symlinks=symlinks or {}
+    if set(files)&set(symlinks):raise ValueError('file/symlink collision')
+    if any(not isinstance(v,str) or not v or '\0' in v or len(v.encode())>=1024 for v in symlinks.values()):
+        raise ValueError('invalid symlink target')
     modes=modes or {}
     if any(not isinstance(v,int) or v<0 or v>0o7777 for v in modes.values()):
         raise ValueError('permission bits required')
@@ -57,21 +61,24 @@ def populate(image, files, volume='A04BR3Root', modes=None):
         bt=bytearray(old[offsets[0]:offsets[1]])
         if len(bt)!=106 or get32(bt,22)*node_size!=catalog_size: raise ValueError('unexpected catalog header')
         dirs={PurePosixPath('/'):2};next_id=16
-        for directory in ('/dev','/tmp','/private/var'):
+        for directory in ('/dev','/private/var')+(() if '/tmp' in symlinks else ('/tmp',))+tuple(directories):
             path=PurePosixPath(directory)
+            if not path.is_absolute() or '..' in path.parts:raise ValueError('invalid directory path')
             for parent in reversed([path]+list(path.parents)[:-1]):
                 if parent not in dirs: dirs[parent]=next_id;next_id+=1
         normalized={}
-        for name,source in files.items():
+        for name,source in list(files.items())+[(n,t.encode()) for n,t in symlinks.items()]:
             path=PurePosixPath(name)
             if not path.is_absolute() or '..' in path.parts or path==PurePosixPath('/'): raise ValueError('invalid path')
             if any(not x.isascii() or len(x)>255 for x in path.parts): raise ValueError('ASCII names <=255 required')
-            if not source.is_file(): raise ValueError('regular file input required')
+            if not isinstance(source,bytes) and not source.is_file(): raise ValueError('regular file input required')
             normalized[path]=source
         for path in sorted(normalized,key=str):
             for parent in reversed(list(path.parents)[:-1]):
                 if parent not in dirs: dirs[parent]=next_id;next_id+=1
         if set(dirs)&set(normalized): raise ValueError('file/directory collision')
+        names=[str(x).lower() for x in list(dirs)+list(normalized)]
+        if len(set(names))!=len(names):raise ValueError('case-insensitive path collision')
         records=[];cursor=get32(header,52);added=0;timestamp=2082844800+1688515200
         def bsd(mode,restricted=False): return struct.pack('>IIBBHI',0,0,8 if restricted else 0,0,mode,0)
         def add(parent,name,data): records.append(((parent,name.lower()),key(parent,name)+data))
@@ -84,7 +91,9 @@ def populate(image, files, volume='A04BR3Root', modes=None):
             rec=struct.pack('>HHII5I',1,0,children,identifier,*([timestamp]*4),0)+bsd(0o040000 | modes.get(str(path),0o1777 if str(path)=='/tmp' else 0o755))+bytes(40)
             assert len(rec)==88;add(parent,name,rec);thread(identifier,parent,name,True)
         for path,source in sorted(normalized.items(),key=lambda p:str(p[0])):
-            length=source.stat().st_size;blocks=(length+block-1)//block
+            link=isinstance(source,bytes)
+            length=len(source) if link else source.stat().st_size
+            blocks=(length+block-1)//block
             first=cursor
             while first+blocks<total:
                 occupied=next((i for i in range(first,first+blocks) if bitmap[i//8]&(0x80>>(i%8))),None)
@@ -93,11 +102,15 @@ def populate(image, files, volume='A04BR3Root', modes=None):
             else: raise ValueError('no contiguous free space')
             for i in range(first,first+blocks): bitmap[i//8]|=0x80>>(i%8)
             disk.seek(first*block)
-            with source.open('rb') as src: shutil.copyfileobj(src,disk,1024*1024)
+            if link:disk.write(source)
+            else:
+                with source.open('rb') as src: shutil.copyfileobj(src,disk,1024*1024)
             cursor=first+blocks;added+=blocks
             forkdata=struct.pack('>QIIII',length,0,blocks,first if blocks else 0,blocks)+bytes(56)
             executable=path.suffix not in ('.dylddata','.dyldlinkedit') and not path.name.startswith('dyld_shared_cache')
-            rec=struct.pack('>HHII5I',2,2,0,next_id,*([timestamp]*4),0)+bsd(0o100000 | modes.get(str(path),0o755 if executable else 0o644),True)+bytes(40)+forkdata+bytes(80)
+            mode=(0o120000 if link else 0o100000) | modes.get(str(path),0o777 if link else (0o755 if executable else 0o644))
+            finder=b'slnkrhap'+bytes(32) if link else bytes(40)
+            rec=struct.pack('>HHII5I',2,2,0,next_id,*([timestamp]*4),0)+bsd(mode,not link)+finder+forkdata+bytes(80)
             assert len(rec)==248;add(dirs[path.parent],path.name,rec);thread(next_id,dirs[path.parent],path.name,False);next_id+=1
         records.sort(key=lambda item:item[0]);leaves=[];current=[];used=14
         for _,record in records:
@@ -124,7 +137,7 @@ def populate(image, files, volume='A04BR3Root', modes=None):
         put32(header,32,len(normalized));put32(header,36,len(dirs)-1)
         put32(header,48,get32(header,48)-added);put32(header,52,cursor);put32(header,64,next_id)
         disk.seek(1024);disk.write(header);disk.seek(total*block-1024);disk.write(header)
-    return {'files':len(normalized),'folders':len(dirs),'bytes':total*block,'file_data_blocks':added}
+    return {'files':len(normalized),'symlinks':len(symlinks),'folders':len(dirs),'bytes':total*block,'file_data_blocks':added}
 
 
 def main():

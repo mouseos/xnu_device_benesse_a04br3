@@ -307,3 +307,16 @@ plain source-generated plist with an empty KeyBagKeys data value, root-owned
 0600, under keybags mode 0700. This is a test fixture, not a usable encrypted
 keybag. It satisfies the file-presence check on the already-loaded test bag
 path; native donor keybagd remains unmodified. Credits: ios-sweet 0038.
+
+`prepare-dyld-root.py --bootstrap-layout --os-root DONOR_OS_ROOT` imports
+the donor's complete usr/share/zoneinfo.default subtree, retaining file
+contents and permission bits. It preserves the donor guest targets of
+/var, /etc, /tmp and /usr/share/zoneinfo as real HFS symbolic links; no host
+link traversal is used to import timezone entries. Runtime directories
+include /private/var/run, tmp (1777), db/timezone, the launchd log parent
+and /Library/Preferences/FeatureFlags. The stage marker moves under
+/private/etc, remaining accessible through the native /etc link.
+HFS symlink records use S_IFLNK and the Apple HFS slnk/rhap Finder fields
+from hfs_vnops.c; tests read back the catalog, data fork and fsck result.
+Use a full root image write after any writable boot. This bootstrap subset
+still does not contain all iOS daemons, application bundles or services.
