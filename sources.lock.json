@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "a4f54eec708ebf3434e39e0d8c585cabce78f5cb",
-    "role": "Development migration extended KeyStore compatibility"
+    "commit": "924ecd8903d8b806b460596bf4034ee5f26f4593",
+    "role": "Bounded multi-block writes and low-load changed-pixel software display"
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
