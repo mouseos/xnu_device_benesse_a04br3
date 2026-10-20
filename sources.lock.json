@@ -1,11 +1,11 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "0bbd1122dfbe7672ddedf76d5edbb10f1204f36d",
-    "role": "Development Sandbox compatibility with bounded crash traces and multiblock eMMC"
+    "commit": "da00d2056dcc18bf9bdb8ce0646a7ebbd8c4c0e9",
+    "role": "Development Sandbox and bounded live window-server stack samples"
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
-    "commit": "0d4609c43bcc4d0bf2ec492e563ddcf9e6f212fe"
+    "commit": "64145a70b840dc7d67ee69cefdb67d86fb27a27e"
   }
 }
