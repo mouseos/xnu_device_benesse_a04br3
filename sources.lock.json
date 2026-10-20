@@ -1,7 +1,7 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "6bab1c086da4b2c57599b6288767a6cf7a650164",
+    "commit": "31d9da12329d00a700e09f1f859c984d0af11a8c",
     "role": "Development IOWatchdog contract plus bounded native diagnostics"
   },
   "bootshim": {
