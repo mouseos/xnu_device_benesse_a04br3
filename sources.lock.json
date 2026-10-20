@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "cde6f90182c8b310053ae940deb1ec44ea92cccb",
-    "role": "A04BR3 IOKit device-tree platform expert"
+    "commit": "133e9ec8a8b6af4bca4e69d43218a1b833a312e9",
+    "role": "Cortex-A35 boot CPU with MT8167 GICv2 timer and SGI"
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
