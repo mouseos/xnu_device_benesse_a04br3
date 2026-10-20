@@ -32,6 +32,7 @@ def main():
     parser.add_argument('--bootshim', type=Path, default=ROOT.parent / 'bootshim')
     parser.add_argument('--out', type=Path, default=ROOT.parent / 'out' / 'diagnostic')
     parser.add_argument('--kernel', type=Path)
+    parser.add_argument('--dyld-probe', action='store_true', help='Allow donor iOS arm64 probe and root shared cache search')
     parser.add_argument('--emmc-root', action='store_true', help='Boot HFS from the GPT userdata partition')
     parser.add_argument('--msdc-probe', action='store_true', help='Probe inherited eMMC using read-only PIO')
     parser.add_argument('--rootfs', type=Path, help='Raw source-generated HFS+ root RAMDisk')
@@ -87,6 +88,8 @@ def main():
             if root_image[1024:1026] not in (b'H+', b'HX'):
                 parser.error('--rootfs must be a raw HFS+ volume')
             cmdline += ' rd=md0'
+        if args.dyld_probe:
+            cmdline += ' unentitled_ios_sim_launch=1 ignition_level=1'
         if args.emmc_root:
             cmdline += ' rd=emmcroot0 a04br3.unsealed_root=1'
         if args.msdc_probe or args.emmc_root:

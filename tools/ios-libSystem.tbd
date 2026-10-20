@@ -1,0 +1,10 @@
+--- !tapi-tbd-v3
+archs: [ arm64 ]
+platform: ios
+install-name: /usr/lib/libSystem.B.dylib
+current-version: 1319.0.0
+compatibility-version: 1.0.0
+exports:
+  - archs: [ arm64 ]
+    symbols: [ _malloc, _free, _write, _getpid, _clock_gettime ]
+...

@@ -39,6 +39,16 @@ _start:
 	svc	#0x80
 	b.cs	hang			/* no console: nothing to report to */
 	mov	x19, x0
+    mov x25, #0
+    /* Give the diagnostic child real standard console descriptors. */
+    mov x0, x19
+    mov x1, #1
+    mov x16, #90 /* dup2 */
+    svc #0x80
+    mov x0, x19
+    mov x1, #2
+    mov x16, #90
+    svc #0x80
 
 	adr	x1, hello
 	adr	x2, hello_tail
@@ -119,7 +129,7 @@ stage_done:
     adr x2, emmc_ok_end
     sub x2, x2, x1
     bl write_console
-    b tick
+    b dynamic_start
 emmc_read_failed:
     add sp, sp, #512
 emmc_seek_failed:
@@ -132,7 +142,78 @@ emmc_open_failed:
     sub x2, x2, x1
     bl write_console
 
+dynamic_start:
+    adr x0, dynamic_path
+    mov x1, #0
+    mov x2, #0
+    mov x16, #SYS_open
+    svc #0x80
+    b.cs tick /* ordinary diagnostic roots have no dynamic probe */
+    mov x16, #6
+    svc #0x80
+    mov x16, #2 /* fork: x1 is the child-return flag */
+    svc #0x80
+    b.cs tick
+    cbnz x1, dynamic_child
+    mov x25, x0
+    b tick
+dynamic_poll:
+    sub sp, sp, #32
+    mov x0, x25
+    mov x1, sp
+    mov x2, #1 /* WNOHANG */
+    mov x3, #0
+    mov x16, #7 /* wait4 */
+    svc #0x80
+    b.cs dynamic_poll_failed
+    cbz x0, dynamic_wait_done
+    mov x25, #0
+    ldr w20, [sp]
+    adr x1, child_result
+    adr x2, child_result_end
+    sub x2, x2, x1
+    bl write_console
+    adr x22, hex_digits
+    mov x23, #8
+    mov x24, #28
+child_hex:
+    lsr w13, w20, w24
+    and w13, w13, #15
+    ldrb w13, [x22, x13]
+    strb w13, [sp, #16]
+    mov x1, sp
+    add x1, x1, #16
+    mov x2, #1
+    bl write_console
+    sub x24, x24, #4
+    subs x23, x23, #1
+    b.ne child_hex
+    adr x1, newline
+    mov x2, #1
+    bl write_console
+    b dynamic_wait_done
+dynamic_poll_failed:
+    mov x25, #0
+dynamic_wait_done:
+    add sp, sp, #32
+    b time_sleep
+dynamic_child:
+    adr x0, dynamic_path
+    sub sp, sp, #32
+    stp x0, xzr, [sp]
+    str xzr, [sp, #16]
+    mov x1, sp
+    add x2, sp, #16
+    mov x16, #59 /* execve */
+    svc #0x80
+    mov x0, #127
+    mov x16, #1 /* exit: never terminate diagnostic PID 1 */
+    svc #0x80
+    b hang
+
 tick:
+    cbnz x25, dynamic_poll
+time_sleep:
 	/* select(0, NULL, NULL, NULL, &5s) as a portable sleep */
 	mov	x0, #0
 	mov	x1, #0
@@ -183,3 +264,13 @@ emmc_ok_end:
 emmc_bad:
     .ascii "A04BR3 userspace eMMC GPT read: FAIL\n"
 emmc_bad_end:
+
+dynamic_path:
+    .asciz "/usr/bin/a04br3-dynamic-probe"
+child_result:
+    .ascii "A04BR3 dynamic child wait status: 0x"
+child_result_end:
+hex_digits:
+    .ascii "0123456789abcdef"
+newline:
+    .ascii "\n"
