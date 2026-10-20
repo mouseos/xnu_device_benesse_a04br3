@@ -20,6 +20,8 @@ def main():
     p.add_argument('--artifacts',required=True,type=Path)
     p.add_argument('--probes',required=True,type=Path)
     p.add_argument('--out',required=True,type=Path)
+    p.add_argument('--pid1',choices=('diagnostic','apple'),default='diagnostic',
+        help='apple installs the unmodified donor launchd as PID1; diagnostic remains the default')
     p.add_argument('--mkfs',default='mkfs.hfsplus')
     p.add_argument('--fsck',default='fsck.hfsplus')
     a=p.parse_args();a.out.mkdir(parents=True,exist_ok=True)
@@ -30,7 +32,12 @@ def main():
     with (cache/'dyld_shared_cache_arm64').open('rb') as f: magic=f.read(16)
     if not magic.startswith(b'dyld_v1') or b'arm64' not in magic:p.error('arm64 dyld shared cache required')
     marker=a.out/'stage.txt';marker.write_text('A04BR3 HFS regular-file read: PASS\n')
-    files={'/sbin/launchd':a.probes/'a04br3-init',
+    pid1=a.artifacts/'macho/launchd' if a.pid1=='apple' else a.probes/'a04br3-init'
+    with pid1.open('rb') as f: pid1_header=f.read(16)
+    if len(pid1_header)!=16 or struct.unpack_from('<III',pid1_header)!=(0xfeedfacf,0x100000c,0):
+        p.error('plain arm64 PID1 required')
+    files={'/sbin/launchd':pid1,
+        '/usr/local/libexec/a04br3-diagnostic-init':a.probes/'a04br3-init',
         '/usr/bin/a04br3-dynamic-probe':a.probes/'dynamic-probe',
         '/usr/lib/dyld':dyld,'/etc/a04br3-stage':marker}
     for file in sorted(cache.glob('dyld_shared_cache_arm64*')):
@@ -43,7 +50,7 @@ def main():
     result=subprocess.run([a.fsck,'-fn',str(image)],text=True,capture_output=True)
     print(result.stdout,end='');print(result.stderr,end='')
     if 'appears to be OK' not in result.stdout+result.stderr:raise SystemExit('HFS verification failed')
-    info.update(donor='iPhone10,3 iOS16.7.16 20H392',donor_unmodified=True,
+    info.update(pid1=a.pid1,donor='iPhone10,3 iOS16.7.16 20H392',donor_unmodified=True,
         inputs={name:{'path':str(file.resolve()),'bytes':file.stat().st_size} for name,file in files.items()})
     (a.out/'root-build.json').write_text(json.dumps(info,indent=2)+'\n')
     print(json.dumps({k:v for k,v in info.items() if k!='inputs'},indent=2))

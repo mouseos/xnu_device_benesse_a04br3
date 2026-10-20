@@ -253,3 +253,13 @@ actual validated GPT, not a guessed device layout. Check every command's
 write result; an mtkclient process exit code alone is insufficient. This
 reconstructs a new source-generated filesystem, without altering donor code.
 Do not use an old image as baseline if the device filesystem has been changed.
+
+For a bounded Apple launchd PID 1 bring-up, pass `--pid1 apple` to
+`prepare-dyld-root.py`. This copies the original `ARTIFACTS/macho/launchd`
+without code or signature patches. The diagnostic init is retained at
+`/usr/local/libexec/a04br3-diagnostic-init`; keep the previous diagnostic
+root image for rollback. This minimal image does not contain the complete
+iOS boot-task executables or daemon configuration and is not a full iOS root.
+Kernel SHA-1 support is required before launchd configures loopback IPv6
+(ios-sweet 0032). SHA-384/512 kernel providers are separate from successful
+CommonCrypto userland tests. Rebuild the kernel from committed source first.
