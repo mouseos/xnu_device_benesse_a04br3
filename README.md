@@ -182,3 +182,11 @@ Filesystem UUIDs/timestamps are assigned by hdiutil; reconstruction uses the
 same sources and steps but does not promise a byte-identical HFS image.
 Payload v3 encodes zero runs in the RAMDisk and validates all bounds before
 loading. The physical boot image must still fit the actual 16 MiB partition.
+
+Hardware milestone (2026-10-20): kernel `89fea0f`, bootshim `556aa15`,
+device `41dc5bc` mounted the generated HFS+ RAMDisk on TAB-A04-BR3,
+executed the diagnostic PID 1 and printed the regular file
+`/etc/a04br3-stage`. Periodic console output continued without an observed
+panic. This verifies the diagnostic root path, not Apple launchd or an iOS
+or macOS environment. The next image optionally probes inherited MSDC0
+using `--msdc-probe`; eMMC operation is not yet hardware verified.
