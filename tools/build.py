@@ -72,7 +72,10 @@ def main():
     subprocess.run(['dtc', '-q', '-I', 'dts', '-O', 'dtb', '-o', str(dtb_path),
                     str(ROOT / 'dts' / 'mt8167-benesse-a04br3.dts')], check=True)
     dtb = dtb_path.read_bytes()
-    config = json.loads((ROOT / 'board.json').read_text())['boot_image']
+    board = json.loads((ROOT / 'board.json').read_text())
+    config = dict(board['boot_image'])
+    if args.full_donor_root:
+        config['ramdisk_addr'] = board['full_donor_handoff']['ramdisk_addr']
     packed = None
     kernel_info = None
     if args.kernel:
@@ -84,7 +87,9 @@ def main():
                 provenance.get('source_commit') != lock['kernel']['commit'] or
                 provenance.get('kernel_sha256') != sha256(kernel)):
             parser.error('kernel is not the successful source build locked by this device revision')
-        memory = json.loads((ROOT / 'board.json').read_text())['xnu_handoff']
+        memory = dict(board['xnu_handoff'])
+        if args.full_donor_root:
+            memory.update(board['full_donor_handoff'])
         cmdline = (memory['cmdline'] + ' a04br3.kernel=' + lock['kernel']['commit'] +
                    ' a04br3.bootshim=' + lock['bootshim']['commit'] +
                    ' a04br3.device=' + (git_revision(ROOT) or 'archive'))

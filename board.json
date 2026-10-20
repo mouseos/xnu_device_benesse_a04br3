@@ -24,5 +24,11 @@
     "physical_base": "0x60000000",
     "managed_size": "0x18000000",
     "cmdline": "-v serial=3 debug=0x14e keepsyms=1 cpus=1 -noprogress"
+  },
+  "full_donor_handoff": {
+    "physical_base": "0x60000000",
+    "managed_size": "0x5e000000",
+    "ramdisk_addr": "0x50000000",
+    "evidence": "Hardware FDT: contiguous RAM to 0xbe9c0000; all reported reservations excluded"
   }
 }

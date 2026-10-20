@@ -405,3 +405,11 @@ guest scripts and initramfs are regenerated without reinstalling the kernel.
 Readonly 9p exports use a 1 MiB message size and loose caching. Sources must
 remain immutable during the copy; this avoids repeated small host/FUSE reads
 and metadata round trips across the full donor tree.
+
+Full-donor boot uses the hardware-FDT-derived 1504 MiB managed interval
+0x60000000..0xbe000000. Reported firmware reservations are excluded; the
+Android RAMDisk payload moves to 0x50000000 to avoid overlap. The default
+small diagnostic profile is unchanged. Shim tests cover contiguous banks,
+reject a gap and reject a reservation inside the managed interval. This
+expanded profile still requires hardware verification before being claimed
+working; it does not imply all 2 GiB is available to XNU.
