@@ -21,3 +21,15 @@ class BootstrapLayout(unittest.TestCase):
             self.assertIn('/private/var/db/timezone',dirs)
             (base/'+VERSION').unlink()
             with self.assertRaises(ValueError):bootstrap_layout.timezone_layout(root)
+
+    def test_native_account_records_and_home_ownership(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);etc=root/'private/etc';etc.mkdir(parents=True)
+            (etc/'passwd').write_text('root:*:0:0:Root:/var/root:/bin/sh\nmobile:*:501:501:Mobile:/var/mobile:/bin/sh\n')
+            (etc/'master.passwd').write_text('fixture');(etc/'group').write_text('fixture')
+            files,dirs,modes,owners,accounts=bootstrap_layout.account_layout(root)
+            self.assertEqual(owners['/private/var/mobile'],(501,501))
+            self.assertEqual(accounts['mobile']['uid'],501)
+            self.assertIn('/private/etc/group',files)
+            (etc/'passwd').write_text('root:*:0:0:Root:/var/root:/bin/sh\n')
+            with self.assertRaises(ValueError):bootstrap_layout.account_layout(root)

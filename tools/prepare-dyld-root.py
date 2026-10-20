@@ -62,7 +62,7 @@ def main():
         if version.is_file():files['/System/Library/CoreServices/SystemVersion.plist']=version
     for file in sorted(cache.glob('dyld_shared_cache_arm64*')):
         if file.is_file():files['/System/Library/Caches/com.apple.dyld/'+file.name]=file
-    modes={};links={};directories=[]
+    modes={};links={};directories=[];owners={};accounts={}
     if a.bootstrap_layout:
         if not a.os_root:p.error('--bootstrap-layout requires --os-root')
         layout_files,links,directories=bootstrap_layout.timezone_layout(a.os_root)
@@ -70,6 +70,8 @@ def main():
         modes.update({name:source.stat().st_mode&0o7777 for name,source in layout_files.items()})
         files['/private/etc/a04br3-stage']=files.pop('/etc/a04br3-stage')
         modes['/private/var/tmp']=0o1777
+        account_files,account_dirs,account_modes,owners,accounts=bootstrap_layout.account_layout(a.os_root)
+        files.update(account_files);directories.extend(account_dirs);modes.update(account_modes)
     if a.dev_keystore:
         if a.pid1!='apple':p.error('--dev-keystore requires --pid1 apple')
         seed=a.out/'development-systembag.plist'
@@ -86,11 +88,11 @@ def main():
     if image.exists():p.error('refusing to overwrite existing root image')
     with image.open('wb') as f:f.truncate(4*1024**3)
     subprocess.run([a.mkfs,'-v','A04BR3Root','-b','4096',str(image)],check=True)
-    info=hfsroot.populate(image,files,modes=modes,symlinks=links,directories=directories)
+    info=hfsroot.populate(image,files,modes=modes,symlinks=links,directories=directories,owners=owners)
     result=subprocess.run([a.fsck,'-fn',str(image)],text=True,capture_output=True)
     print(result.stdout,end='');print(result.stderr,end='')
     if 'appears to be OK' not in result.stdout+result.stderr:raise SystemExit('HFS verification failed')
-    info.update(pid1=a.pid1,service_profile=str(a.service_profile) if a.service_profile else None,services=services,bootstrap_layout=a.bootstrap_layout,symlink_targets=links,development_keystore=a.dev_keystore,boot_tasks=tasks,donor='iPhone10,3 iOS16.7.16 20H392',donor_unmodified=True,
+    info.update(pid1=a.pid1,accounts=accounts,service_profile=str(a.service_profile) if a.service_profile else None,services=services,bootstrap_layout=a.bootstrap_layout,symlink_targets=links,development_keystore=a.dev_keystore,boot_tasks=tasks,donor='iPhone10,3 iOS16.7.16 20H392',donor_unmodified=True,
         inputs={name:{'path':str(file.resolve()),'bytes':file.stat().st_size} for name,file in files.items()})
     (a.out/'root-build.json').write_text(json.dumps(info,indent=2)+'\n')
     print(json.dumps({k:v for k,v in info.items() if k!='inputs'},indent=2))

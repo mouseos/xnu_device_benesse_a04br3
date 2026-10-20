@@ -337,3 +337,53 @@ not enabled in this stage. Selection and overrides are stored as source,
 not applied as in-place binary patches. This tests basic launchd services,
 not the full iOS service graph or GUI. The unsigned-cache option is off by
 default and requires the explicit development platform-root option.
+
+### Complete donor root in a rootless Linux VM
+
+`tools/fullroot_vm.py` builds a full 14 GiB case-sensitive, journaled HFSX
+image using the Linux HFS+ driver inside QEMU. The host never mounts the
+image and needs no sudo. Ubuntu 24.04 amd64 tools are listed in
+`config/fullroot-runtime.json`; the unsigned guest kernel and optional
+matching module package have explicit upstream download locations. Guest
+modules may also come from the installed matching version. The source
+builds its initramfs from the declared host tools and their libraries.
+
+Mount all three d22ap donor components read-only with apfs-fuse, as selected
+by BuildManifest: OS, Cryptex1,SystemOS and Cryptex1,AppOS. Supply the actual
+`root` directory of each FUSE mount. Keep donor artifacts outside Git.
+First use `--probe` to verify the native filesystem path without donor data:
+
+```
+python3 tools/fullroot_vm.py --probe --out PROBE_OUT \
+  --kernel-deb KERNEL_DEB --mkfs MKFS_HFSPLUS --fsck FSCK_HFSPLUS --log PROBE_LOG
+python3 tools/fullroot_vm.py --os-root OS_ROOT --system-root SYSTEM_ROOT \
+  --app-root APP_ROOT --probes SOURCE_BUILT_PROBES --out FULL_ROOT_OUT \
+  --kernel-deb KERNEL_DEB --mkfs MKFS_HFSPLUS --fsck FSCK_HFSPLUS --log COPY_LOG
+```
+
+The guest exports are read-only and its only writable disk is the new image.
+Native rsync preserves modes, numeric ownership, symlinks and hard links.
+The complete native OS and both cryptex trees are copied. Missing root aliases
+for cryptex files, including the shared cache, are hard links rather than
+extra copies. Native xattrs are exported separately and written with Linux's
+`osx.` HFS namespace mapping. APFS compression metadata and compressed
+ResourceFork storage are omitted when decompressed bytes are copied; they
+must not be applied to an uncompressed file. Other xattr failures stop the
+build. BSD flags not exposed by Linux's FUSE stat interface are not claimed
+to be preserved. Apple's fsck normalization pass and a final read-only check
+must pass before the image is reported ready.
+
+The original complete launchd cache and daemon graph are retained. No
+_PanicOnCrash key or daemon program is patched. Explicit development additions
+are the unlocked test systembag, logd restore directories (ios-sweet
+mkiosroot.sh reference), runtime directories, and source-built diagnostics.
+This root still needs the development kernel/boot arguments and compatible
+hardware drivers; copying all files is not proof of an iOS GUI boot.
+
+`layouts/xnu-full-root.json` reclaims Android system/vendor/cache/metadata:
+boot becomes 128 MiB at LBA 294912; userdata starts at LBA 557056 and ends
+before flashinfo. Other retained boot-chain partitions keep their addresses.
+The 14 GiB root fits this layout, but does not fit the old userdata partition.
+Generate and validate both GPT copies with `tools/gpt.py`. GPT, boot and root
+writes must use the new layout's exact offsets; do not write this image using
+the old userdata address. Source copying and VM tests do not modify a device.

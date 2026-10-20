@@ -1,0 +1,26 @@
+{
+  "kernel_version": "7.0.0-34-generic",
+  "kernel": {
+    "url": "https://archive.ubuntu.com/ubuntu/pool/main/l/linux-hwe-7.0/linux-image-unsigned-7.0.0-34-generic_7.0.0-34.34~24.04.1_amd64.deb",
+    "sha256": "85f58db9855206debcbfc4db3defce9c90d96a0f50fef00c5a24cbacc9a7a837",
+    "mirrors": [
+      "https://ftp.jaist.ac.jp/pub/Linux/ubuntu/pool/main/l/linux-hwe-7.0/linux-image-unsigned-7.0.0-34-generic_7.0.0-34.34~24.04.1_amd64.deb"
+    ]
+  },
+  "modules": {
+    "url": "https://archive.ubuntu.com/ubuntu/pool/main/l/linux-hwe-7.0/linux-modules-7.0.0-34-generic_7.0.0-34.34~24.04.1_amd64.deb",
+    "sha256": "e81f48d95ef2ee583b342836491cc77c7fe3fbe62735b3283bc43aec5d1c7e8c"
+  },
+  "host_dependencies": [
+    "Ubuntu 24.04 amd64",
+    "qemu-system-x86",
+    "busybox",
+    "rsync",
+    "python3.12",
+    "cpio",
+    "dpkg-deb",
+    "modprobe",
+    "zstd",
+    "hfsprogs"
+  ]
+}

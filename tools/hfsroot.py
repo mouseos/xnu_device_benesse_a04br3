@@ -32,7 +32,10 @@ def node(size,kind,height,records,forward=0,backward=0):
     struct.pack_into('>H',result,size-2*(len(records)+1),at)
     return result
 
-def populate(image, files, volume='A04BR3Root', modes=None, symlinks=None, directories=()):
+def populate(image, files, volume='A04BR3Root', modes=None, symlinks=None, directories=(), owners=None):
+    owners=owners or {}
+    if any(len(v)!=2 or any(not isinstance(x,int) or x<0 or x>0xffffffff for x in v) for v in owners.values()):
+        raise ValueError('uid/gid pairs required')
     symlinks=symlinks or {}
     if set(files)&set(symlinks):raise ValueError('file/symlink collision')
     if any(not isinstance(v,str) or not v or '\0' in v or len(v.encode())>=1024 for v in symlinks.values()):
@@ -80,7 +83,9 @@ def populate(image, files, volume='A04BR3Root', modes=None, symlinks=None, direc
         names=[str(x).lower() for x in list(dirs)+list(normalized)]
         if len(set(names))!=len(names):raise ValueError('case-insensitive path collision')
         records=[];cursor=get32(header,52);added=0;timestamp=2082844800+1688515200
-        def bsd(mode,restricted=False): return struct.pack('>IIBBHI',0,0,8 if restricted else 0,0,mode,0)
+        def bsd(mode,restricted=False,path=None):
+            uid,gid=owners.get(str(path),(0,0))
+            return struct.pack('>IIBBHI',uid,gid,8 if restricted else 0,0,mode,0)
         def add(parent,name,data): records.append(((parent,name.lower()),key(parent,name)+data))
         def thread(identifier,parent,name,isdir):
             text=name.encode('utf-16be')
@@ -88,7 +93,7 @@ def populate(image, files, volume='A04BR3Root', modes=None, symlinks=None, direc
         for path,identifier in dirs.items():
             parent=1 if identifier==2 else dirs[path.parent];name=volume if identifier==2 else path.name
             children=sum(x.parent==path for x in list(dirs)+list(normalized) if x!=path)
-            rec=struct.pack('>HHII5I',1,0,children,identifier,*([timestamp]*4),0)+bsd(0o040000 | modes.get(str(path),0o1777 if str(path)=='/tmp' else 0o755))+bytes(40)
+            rec=struct.pack('>HHII5I',1,0,children,identifier,*([timestamp]*4),0)+bsd(0o040000 | modes.get(str(path),0o1777 if str(path)=='/tmp' else 0o755),path=path)+bytes(40)
             assert len(rec)==88;add(parent,name,rec);thread(identifier,parent,name,True)
         for path,source in sorted(normalized.items(),key=lambda p:str(p[0])):
             link=isinstance(source,bytes)
@@ -110,7 +115,7 @@ def populate(image, files, volume='A04BR3Root', modes=None, symlinks=None, direc
             executable=path.suffix not in ('.dylddata','.dyldlinkedit') and not path.name.startswith('dyld_shared_cache')
             mode=(0o120000 if link else 0o100000) | modes.get(str(path),0o777 if link else (0o755 if executable else 0o644))
             finder=b'slnkrhap'+bytes(32) if link else bytes(40)
-            rec=struct.pack('>HHII5I',2,2,0,next_id,*([timestamp]*4),0)+bsd(mode,not link)+finder+forkdata+bytes(80)
+            rec=struct.pack('>HHII5I',2,2,0,next_id,*([timestamp]*4),0)+bsd(mode,not link,path)+finder+forkdata+bytes(80)
             assert len(rec)==248;add(dirs[path.parent],path.name,rec);thread(next_id,dirs[path.parent],path.name,False);next_id+=1
         records.sort(key=lambda item:item[0]);leaves=[];current=[];used=14
         for _,record in records:
