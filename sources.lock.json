@@ -1,7 +1,7 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "bcaaf6b12be9083917bfcf40c3fc02d509e8070a",
+    "commit": "71603ea940f0b41b6a764032db60f90167ba5dcc",
     "role": "Late LaunchServices and migration wait capture with low-load performance profile"
   },
   "bootshim": {
