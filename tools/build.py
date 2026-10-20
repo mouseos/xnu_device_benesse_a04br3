@@ -32,6 +32,7 @@ def main():
     parser.add_argument('--bootshim', type=Path, default=ROOT.parent / 'bootshim')
     parser.add_argument('--out', type=Path, default=ROOT.parent / 'out' / 'diagnostic')
     parser.add_argument('--kernel', type=Path)
+    parser.add_argument('--msdc-probe', action='store_true', help='Probe inherited eMMC using read-only PIO')
     parser.add_argument('--rootfs', type=Path, help='Raw source-generated HFS+ root RAMDisk')
     parser.add_argument('--bringup-init', action='store_true', help='Build minimal PID 1 and boot it through mockfs/md0')
     parser.add_argument('--kernel-build-json', type=Path)
@@ -83,6 +84,8 @@ def main():
             if root_image[1024:1026] not in (b'H+', b'HX'):
                 parser.error('--rootfs must be a raw HFS+ volume')
             cmdline += ' rd=md0'
+        if args.msdc_probe:
+            cmdline += ' a04br3.msdc_probe=1'
         raw, kernel_info = payload.build(kernel, int(memory['physical_base'], 0),
                                          int(memory['managed_size'], 0), cmdline, ramdisk=root_image, compact_ramdisk=bool(args.rootfs))
         packed = raw
