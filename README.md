@@ -320,3 +320,7 @@ HFS symlink records use S_IFLNK and the Apple HFS slnk/rhap Finder fields
 from hfs_vnops.c; tests read back the catalog, data fork and fsck result.
 Use a full root image write after any writable boot. This bootstrap subset
 still does not contain all iOS daemons, application bundles or services.
+
+Boot arguments include the device repository revision (or `archive` when
+Git metadata is absent), so UART captures can distinguish root-layout trials
+that reuse the same kernel and bootshim.

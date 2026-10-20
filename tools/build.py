@@ -80,7 +80,8 @@ def main():
             parser.error('kernel is not the successful source build locked by this device revision')
         memory = json.loads((ROOT / 'board.json').read_text())['xnu_handoff']
         cmdline = (memory['cmdline'] + ' a04br3.kernel=' + lock['kernel']['commit'] +
-                   ' a04br3.bootshim=' + lock['bootshim']['commit'])
+                   ' a04br3.bootshim=' + lock['bootshim']['commit'] +
+                   ' a04br3.device=' + (git_revision(ROOT) or 'archive'))
         if args.dev_keystore:
             cmdline += ' a04br3.dev_keystore=1'
         if args.writable_root:
