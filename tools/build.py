@@ -60,8 +60,10 @@ def main():
                 provenance.get('kernel_sha256') != sha256(kernel)):
             parser.error('kernel is not the successful source build locked by this device revision')
         memory = json.loads((ROOT / 'board.json').read_text())['xnu_handoff']
+        cmdline = (memory['cmdline'] + ' a04br3.kernel=' + lock['kernel']['commit'] +
+                   ' a04br3.bootshim=' + lock['bootshim']['commit'])
         raw, kernel_info = payload.build(kernel, int(memory['physical_base'], 0),
-                                         int(memory['managed_size'], 0), memory['cmdline'])
+                                         int(memory['managed_size'], 0), cmdline)
         packed = raw
         kernel_info.update(source_build=provenance,
                            payload_bytes=len(packed), kernel_sha256=sha256(kernel))
