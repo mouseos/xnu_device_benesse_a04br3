@@ -1,11 +1,11 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "a043c414992a4f756ad0787df6cf8ff207baea9a",
-    "role": "Development keybag atomic data replacement for persona synchronization"
+    "commit": "a4f54eec708ebf3434e39e0d8c585cabce78f5cb",
+    "role": "Development migration extended KeyStore compatibility"
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
-    "commit": "64145a70b840dc7d67ee69cefdb67d86fb27a27e"
+    "commit": "01c9388d66ad1e703c75c1cce083d18aeb8f3688"
   }
 }
