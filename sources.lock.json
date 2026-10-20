@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "2f39febf315cf6fbeb3f6ce3da36d87e1ecb47eb",
-    "role": "Portable SHA1 SHA384 SHA512 for Apple launchd bring-up"
+    "commit": "b0fa60117468b2c37b4dfb7b6af0d2cf5c8b140a",
+    "role": "Signed XML entitlements and explicit development platform root"
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",

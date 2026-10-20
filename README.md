@@ -263,3 +263,17 @@ iOS boot-task executables or daemon configuration and is not a full iOS root.
 Kernel SHA-1 support is required before launchd configures loopback IPv6
 (ios-sweet 0032). SHA-384/512 kernel providers are separate from successful
 CommonCrypto userland tests. Rebuild the kernel from committed source first.
+
+Apple PID 1 images now require `--os-root DONOR_OS_ROOT`, pointing to the
+read-only mounted OS component selected from the d22ap BuildManifest.
+`boot_tasks.py` reads launchd's Mach-O `__config` plist as data and copies
+the listed boot executables without modification. Missing RequireRun
+executables fail generation; absent optional tasks are recorded in
+root-build.json. Internal relative aliases are copied as identical regular
+files; links escaping the donor root are rejected. SystemVersion.plist is
+also copied when present. This is still a boot-task subset, not a full root.
+Use `build.py --platform-root --emmc-root --dyld-probe` for this development
+image. The explicit flag substitutes read-only root membership for the
+missing Apple trust cache when assigning platform status; it is not secure
+boot. XML entitlements must match the code directory, and missing/DER-only
+entitlements are not granted.

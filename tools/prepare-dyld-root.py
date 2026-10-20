@@ -13,6 +13,7 @@ from pathlib import Path
 import struct
 import subprocess
 import hfsroot
+import boot_tasks
 
 
 def main():
@@ -22,6 +23,7 @@ def main():
     p.add_argument('--out',required=True,type=Path)
     p.add_argument('--pid1',choices=('diagnostic','apple'),default='diagnostic',
         help='apple installs the unmodified donor launchd as PID1; diagnostic remains the default')
+    p.add_argument('--os-root',type=Path,help='read-only mounted donor OS root; required for Apple PID1 boot tasks')
     p.add_argument('--mkfs',default='mkfs.hfsplus')
     p.add_argument('--fsck',default='fsck.hfsplus')
     a=p.parse_args();a.out.mkdir(parents=True,exist_ok=True)
@@ -40,6 +42,13 @@ def main():
         '/usr/local/libexec/a04br3-diagnostic-init':a.probes/'a04br3-init',
         '/usr/bin/a04br3-dynamic-probe':a.probes/'dynamic-probe',
         '/usr/lib/dyld':dyld,'/etc/a04br3-stage':marker}
+    tasks={}
+    if a.pid1=='apple':
+        if not a.os_root:p.error('--pid1 apple requires --os-root')
+        boot_files,tasks=boot_tasks.donor_files(pid1,a.os_root)
+        files.update(boot_files)
+        version=a.os_root/'System/Library/CoreServices/SystemVersion.plist'
+        if version.is_file():files['/System/Library/CoreServices/SystemVersion.plist']=version
     for file in sorted(cache.glob('dyld_shared_cache_arm64*')):
         if file.is_file():files['/System/Library/Caches/com.apple.dyld/'+file.name]=file
     image=a.out/'hfs-root.img'
@@ -50,7 +59,7 @@ def main():
     result=subprocess.run([a.fsck,'-fn',str(image)],text=True,capture_output=True)
     print(result.stdout,end='');print(result.stderr,end='')
     if 'appears to be OK' not in result.stdout+result.stderr:raise SystemExit('HFS verification failed')
-    info.update(pid1=a.pid1,donor='iPhone10,3 iOS16.7.16 20H392',donor_unmodified=True,
+    info.update(pid1=a.pid1,boot_tasks=tasks,donor='iPhone10,3 iOS16.7.16 20H392',donor_unmodified=True,
         inputs={name:{'path':str(file.resolve()),'bytes':file.stat().st_size} for name,file in files.items()})
     (a.out/'root-build.json').write_text(json.dumps(info,indent=2)+'\n')
     print(json.dumps({k:v for k,v in info.items() if k!='inputs'},indent=2))

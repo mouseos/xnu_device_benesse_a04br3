@@ -32,6 +32,7 @@ def main():
     parser.add_argument('--bootshim', type=Path, default=ROOT.parent / 'bootshim')
     parser.add_argument('--out', type=Path, default=ROOT.parent / 'out' / 'diagnostic')
     parser.add_argument('--kernel', type=Path)
+    parser.add_argument('--platform-root', action='store_true', help='Development platform status for signed binaries on read-only root')
     parser.add_argument('--dyld-probe', action='store_true', help='Allow donor iOS arm64 probe and root shared cache search')
     parser.add_argument('--emmc-root', action='store_true', help='Boot HFS from the GPT userdata partition')
     parser.add_argument('--msdc-probe', action='store_true', help='Probe inherited eMMC using read-only PIO')
@@ -74,6 +75,8 @@ def main():
         memory = json.loads((ROOT / 'board.json').read_text())['xnu_handoff']
         cmdline = (memory['cmdline'] + ' a04br3.kernel=' + lock['kernel']['commit'] +
                    ' a04br3.bootshim=' + lock['bootshim']['commit'])
+        if args.platform_root:
+            cmdline += ' a04br3.platform_root=1'
         root_image = None
         if args.bringup_init:
             obj = destination / 'a04br3-init.o'
