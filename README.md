@@ -236,3 +236,20 @@ Linux without sudo can extract hfsprogs' deb and invoke its mkfs/fsck by
 absolute path (`--mkfs` and `--fsck`); no kernel filesystem mount is needed.
 The static init can also be rebuilt with Clang targeting arm64-apple-ios16.0
 and `tools/mkinit.py`, using the same checked-in assembly.
+
+The expanded `dynamic-probe.c` exercises a real pthread with mutex/condition
+synchronization, dispatch_once_f across parent/worker threads, and the SHA-512
+known answer for "abc", using the same donor runtime. `.github/workflows/probes.yml`
+builds only these programs on the declared Xcode host and retains opt-in SSH
+for fixes; it does not rebuild XNU or install a KDK.
+
+For a root already written from a known local generated image and mounted
+read-only on the device, `tools/hfsdelta.py OLD NEW --out DIR
+--partition-start BYTES --partition-bytes BYTES` creates a bounded mtkclient
+script of changed HFS blocks. Both images must have equal aligned sizes;
+all writes must stay inside the supplied partition bounds. Run
+`mtk script DIR/write.mtk`. Obtain the partition start/capacity from the
+actual validated GPT, not a guessed device layout. Check every command's
+write result; an mtkclient process exit code alone is insufficient. This
+reconstructs a new source-generated filesystem, without altering donor code.
+Do not use an old image as baseline if the device filesystem has been changed.
