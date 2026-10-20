@@ -16,12 +16,16 @@ class RangeView(unittest.TestCase):
             flags=shlex.split(subprocess.check_output(['pkg-config','--cflags','--libs','fuse'],text=True))
             subprocess.run(['cc','-O2','-Wall','-Wextra','-Werror',str(source),*flags,'-o',str(program)],check=True)
             data=bytes(range(256))*32;image=root/'image';image.write_bytes(data)
-            manifest=root/'ranges.tsv';manifest.write_text('89 385 first.bin\n1001 bff second.bin\n')
+            high=bytes(range(256))*4
+            with image.open('r+b') as stream:
+                stream.seek((1<<32)+129);stream.write(high);stream.truncate((1<<32)+4096)
+            manifest=root/'ranges.tsv';manifest.write_text('89 385 first.bin\n1001 bff second.bin\n100000081 400 high.bin\n')
             subprocess.run([str(program),str(image),str(manifest),str(mount)],check=True)
             try:
                 self.assertEqual((mount/'first.bin').read_bytes(),data[137:1038])
                 self.assertEqual((mount/'second.bin').read_bytes(),data[4097:7168])
-                self.assertEqual(sorted(x.name for x in mount.iterdir()),['first.bin','second.bin'])
+                self.assertEqual((mount/'high.bin').read_bytes(),high)
+                self.assertEqual(sorted(x.name for x in mount.iterdir()),['first.bin','high.bin','second.bin'])
                 with (mount/'second.bin').open('rb') as stream:
                     stream.seek(3070);self.assertEqual(stream.read(16),data[7167:7168]);self.assertEqual(stream.read(1),b'')
                 with self.assertRaises(OSError) as failure:os.open(mount/'first.bin',os.O_WRONLY)
