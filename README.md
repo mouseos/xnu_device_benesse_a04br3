@@ -413,3 +413,14 @@ small diagnostic profile is unchanged. Shim tests cover contiguous banks,
 reject a gap and reject a reservation inside the managed interval. This
 expanded profile still requires hardware verification before being claimed
 working; it does not imply all 2 GiB is available to XNU.
+
+For the complete root, `tools/fullroot_flash.py --image HFS_IMG --boot BOOT_IMG
+--layout layouts/xnu-full-root.json --out PLAN_DIR` emits a bounded mtkclient
+script. It writes every allocated filesystem block plus reserved volume
+headers, skipping only unallocated storage. This is a complete filesystem
+write and needs neither an old target image nor a device readback. Small holes
+may be included to reduce command count. Native copy_file_range stages source
+ranges without a userspace buffer when supported. Boot and backup GPT follow
+the root data, and primary GPT activates the new layout last. This saves
+transferring filesystem free space while keeping all live data and metadata.
+Never run the script until the final fsck-verified root-build.json exists.
