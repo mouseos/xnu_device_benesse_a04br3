@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "b0fa60117468b2c37b4dfb7b6af0d2cf5c8b140a",
-    "role": "Signed XML entitlements and explicit development platform root"
+    "commit": "ee6dbc08cfdadf04acca0c15564c57c7ef19807f",
+    "role": "Explicit development writable HFS and userdata-only eMMC PIO writes"
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",

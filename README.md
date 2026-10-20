@@ -284,3 +284,15 @@ which mount may choose as its fallback path. Bootshim emits a 48-byte
 /chosen/boot-manifest-hash naming the A04BR3 development preboot namespace
 (SHA-384 of the documented fixed development label), not an authenticated
 Apple boot manifest. Root and block device remain read-only in this stage.
+
+`--writable-root --emmc-root` explicitly enables a04br3.root_rw=1 and
+a04br3.emmc_rw=1. The block driver accepts writes only to GPT userdata
+minor 1; whole-disk and raw character writes stay denied. CMD24 single-block
+PIO waits for CMD13 programming completion; synchronize ioctls flush an
+enabled card cache with EXT_CSD FLUSH_CACHE. No clock/timing changes are made.
+This is a development non-journaled HFS root; the explicit mode also permits
+its dirty-root remount after a crash. It does not repair filesystem damage.
+The development platform policy continues on this explicitly writable root.
+After the first writable boot, never use a previous generated root image as
+a delta baseline: restore a complete source-generated image for root updates.
+Boot-only fixes can reuse the current root.

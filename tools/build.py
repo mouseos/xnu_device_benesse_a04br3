@@ -32,6 +32,7 @@ def main():
     parser.add_argument('--bootshim', type=Path, default=ROOT.parent / 'bootshim')
     parser.add_argument('--out', type=Path, default=ROOT.parent / 'out' / 'diagnostic')
     parser.add_argument('--kernel', type=Path)
+    parser.add_argument('--writable-root', action='store_true', help='Enable userdata-only eMMC writes and development writable HFS root')
     parser.add_argument('--platform-root', action='store_true', help='Development platform status for signed binaries on read-only root')
     parser.add_argument('--dyld-probe', action='store_true', help='Allow donor iOS arm64 probe and root shared cache search')
     parser.add_argument('--emmc-root', action='store_true', help='Boot HFS from the GPT userdata partition')
@@ -40,6 +41,8 @@ def main():
     parser.add_argument('--bringup-init', action='store_true', help='Build minimal PID 1 and boot it through mockfs/md0')
     parser.add_argument('--kernel-build-json', type=Path)
     args = parser.parse_args()
+    if args.writable_root and not args.emmc_root:
+        parser.error('--writable-root requires --emmc-root')
     if args.emmc_root and (args.rootfs or args.bringup_init):
         parser.error('--emmc-root cannot include a RAMDisk root')
     if args.rootfs and args.bringup_init:
@@ -75,6 +78,8 @@ def main():
         memory = json.loads((ROOT / 'board.json').read_text())['xnu_handoff']
         cmdline = (memory['cmdline'] + ' a04br3.kernel=' + lock['kernel']['commit'] +
                    ' a04br3.bootshim=' + lock['bootshim']['commit'])
+        if args.writable_root:
+            cmdline += ' a04br3.root_rw=1 a04br3.emmc_rw=1'
         if args.platform_root:
             cmdline += ' a04br3.platform_root=1'
         root_image = None
