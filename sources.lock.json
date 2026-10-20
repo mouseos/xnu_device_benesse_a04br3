@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "77517190f708a20bda3edbd1ef0a4802f400eba1",
-    "role": "Explicit native FairPlay unavailable-service experiment; SMP/DMA and locationd diagnostics"
+    "commit": "9ea629fe63bbce2db0e81bdc9a53e02cd84c4a0f",
+    "role": "Preserve native launchd policy during explicit FairPlay isolation; SMP/DMA and locationd diagnostics"
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
