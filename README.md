@@ -296,3 +296,14 @@ The development platform policy continues on this explicitly writable root.
 After the first writable boot, never use a previous generated root image as
 a delta baseline: restore a complete source-generated image for root updates.
 Boot-only fixes can reuse the current root.
+
+For development keybag bring-up only, pass `--dev-keystore` to both root
+preparation and boot generation (the latter also requires --writable-root).
+The software AppleKeyStore is disabled by default and is always unlocked
+when explicitly enabled; it implements no SEP, passcode, encryption or
+cryptographic wrapping. Unsupported operations fail. Bootshim describes
+the board's absence of Apple effaceable storage. Root generation writes a
+plain source-generated plist with an empty KeyBagKeys data value, root-owned
+0600, under keybags mode 0700. This is a test fixture, not a usable encrypted
+keybag. It satisfies the file-presence check on the already-loaded test bag
+path; native donor keybagd remains unmodified. Credits: ios-sweet 0038.

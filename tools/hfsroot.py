@@ -32,7 +32,10 @@ def node(size,kind,height,records,forward=0,backward=0):
     struct.pack_into('>H',result,size-2*(len(records)+1),at)
     return result
 
-def populate(image, files, volume='A04BR3Root'):
+def populate(image, files, volume='A04BR3Root', modes=None):
+    modes=modes or {}
+    if any(not isinstance(v,int) or v<0 or v>0o7777 for v in modes.values()):
+        raise ValueError('permission bits required')
     if not volume.isascii() or not volume: raise ValueError('ASCII volume required')
     with image.open('r+b') as disk:
         disk.seek(1024);header=bytearray(disk.read(512))
@@ -78,7 +81,7 @@ def populate(image, files, volume='A04BR3Root'):
         for path,identifier in dirs.items():
             parent=1 if identifier==2 else dirs[path.parent];name=volume if identifier==2 else path.name
             children=sum(x.parent==path for x in list(dirs)+list(normalized) if x!=path)
-            rec=struct.pack('>HHII5I',1,0,children,identifier,*([timestamp]*4),0)+bsd(0o041777 if str(path)=='/tmp' else 0o040755)+bytes(40)
+            rec=struct.pack('>HHII5I',1,0,children,identifier,*([timestamp]*4),0)+bsd(0o040000 | modes.get(str(path),0o1777 if str(path)=='/tmp' else 0o755))+bytes(40)
             assert len(rec)==88;add(parent,name,rec);thread(identifier,parent,name,True)
         for path,source in sorted(normalized.items(),key=lambda p:str(p[0])):
             length=source.stat().st_size;blocks=(length+block-1)//block
@@ -94,7 +97,7 @@ def populate(image, files, volume='A04BR3Root'):
             cursor=first+blocks;added+=blocks
             forkdata=struct.pack('>QIIII',length,0,blocks,first if blocks else 0,blocks)+bytes(56)
             executable=path.suffix not in ('.dylddata','.dyldlinkedit') and not path.name.startswith('dyld_shared_cache')
-            rec=struct.pack('>HHII5I',2,2,0,next_id,*([timestamp]*4),0)+bsd(0o100755 if executable else 0o100644,True)+bytes(40)+forkdata+bytes(80)
+            rec=struct.pack('>HHII5I',2,2,0,next_id,*([timestamp]*4),0)+bsd(0o100000 | modes.get(str(path),0o755 if executable else 0o644),True)+bytes(40)+forkdata+bytes(80)
             assert len(rec)==248;add(dirs[path.parent],path.name,rec);thread(next_id,dirs[path.parent],path.name,False);next_id+=1
         records.sort(key=lambda item:item[0]);leaves=[];current=[];used=14
         for _,record in records:
