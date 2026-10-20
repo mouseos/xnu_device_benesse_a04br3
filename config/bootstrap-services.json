@@ -1,0 +1,6 @@
+{
+  "description": "Development service bring-up only; not the complete iOS daemon set",
+  "services": [
+    {"label": "com.apple.notifyd", "run_at_load": true}
+  ]
+}

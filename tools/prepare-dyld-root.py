@@ -16,6 +16,7 @@ import subprocess
 import hfsroot
 import boot_tasks
 import bootstrap_layout
+import launchd_profile
 
 
 def main():
@@ -25,6 +26,7 @@ def main():
     p.add_argument('--out',required=True,type=Path)
     p.add_argument('--pid1',choices=('diagnostic','apple'),default='diagnostic',
         help='apple installs the unmodified donor launchd as PID1; diagnostic remains the default')
+    p.add_argument('--service-profile',type=Path,help='Explicit minimal launchd service profile; needs development cache boot flag')
     p.add_argument('--bootstrap-layout',action='store_true',help='Preserve donor standard symlinks and include timezone/runtime layout')
     p.add_argument('--dev-keystore',action='store_true',help='Seed an empty, unencrypted development systembag plist')
     p.add_argument('--os-root',type=Path,help='read-only mounted donor OS root; required for Apple PID1 boot tasks')
@@ -74,6 +76,12 @@ def main():
         seed.write_bytes(plistlib.dumps({'KeyBagKeys':b''}))
         files['/private/var/keybags/systembag.kb']=seed
         modes.update({'/private/var/keybags':0o700,'/private/var/keybags/systembag.kb':0o600})
+    services=[]
+    if a.service_profile:
+        if not a.os_root or a.pid1!='apple':p.error('--service-profile requires donor OS root and Apple PID1')
+        service_files,services=launchd_profile.prepare(a.os_root,a.service_profile,a.out/'launchd-profile')
+        files.update(service_files)
+        modes.update({name:(0o644 if name.endswith('.plist') else source.stat().st_mode&0o7777) for name,source in service_files.items()})
     image=a.out/'hfs-root.img'
     if image.exists():p.error('refusing to overwrite existing root image')
     with image.open('wb') as f:f.truncate(4*1024**3)
@@ -82,7 +90,7 @@ def main():
     result=subprocess.run([a.fsck,'-fn',str(image)],text=True,capture_output=True)
     print(result.stdout,end='');print(result.stderr,end='')
     if 'appears to be OK' not in result.stdout+result.stderr:raise SystemExit('HFS verification failed')
-    info.update(pid1=a.pid1,bootstrap_layout=a.bootstrap_layout,symlink_targets=links,development_keystore=a.dev_keystore,boot_tasks=tasks,donor='iPhone10,3 iOS16.7.16 20H392',donor_unmodified=True,
+    info.update(pid1=a.pid1,service_profile=str(a.service_profile) if a.service_profile else None,services=services,bootstrap_layout=a.bootstrap_layout,symlink_targets=links,development_keystore=a.dev_keystore,boot_tasks=tasks,donor='iPhone10,3 iOS16.7.16 20H392',donor_unmodified=True,
         inputs={name:{'path':str(file.resolve()),'bytes':file.stat().st_size} for name,file in files.items()})
     (a.out/'root-build.json').write_text(json.dumps(info,indent=2)+'\n')
     print(json.dumps({k:v for k,v in info.items() if k!='inputs'},indent=2))

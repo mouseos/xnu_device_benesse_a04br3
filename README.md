@@ -324,3 +324,16 @@ still does not contain all iOS daemons, application bundles or services.
 Boot arguments include the device repository revision (or `archive` when
 Git metadata is absent), so UART captures can distinguish root-layout trials
 that reuse the same kernel and bootshim.
+
+For the next service stage, pass `--service-profile config/bootstrap-services.json`
+to root preparation and `--development-launchd-cache` to boot generation.
+The latter emits the documented development argument `launchd_unsecure_cache=1`
+(ios-sweet 0039 bring-up notes); no valid Apple signature is claimed for a
+source-generated configuration. The profile explicitly selects notifyd alone,
+retains its donor job fields and adds RunAtLoad for this test. The executable
+is copied unmodified. The generated version-7 cache and matching job plist
+contain only the selected services; app extensions and other daemon jobs are
+not enabled in this stage. Selection and overrides are stored as source,
+not applied as in-place binary patches. This tests basic launchd services,
+not the full iOS service graph or GUI. The unsigned-cache option is off by
+default and requires the explicit development platform-root option.

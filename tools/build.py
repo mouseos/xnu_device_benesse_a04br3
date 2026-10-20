@@ -32,6 +32,7 @@ def main():
     parser.add_argument('--bootshim', type=Path, default=ROOT.parent / 'bootshim')
     parser.add_argument('--out', type=Path, default=ROOT.parent / 'out' / 'diagnostic')
     parser.add_argument('--kernel', type=Path)
+    parser.add_argument('--development-launchd-cache',action='store_true',help='Explicitly use the development unsigned launchd service cache')
     parser.add_argument('--dev-keystore',action='store_true',help='Explicit development-only unlocked KeyStore without data protection')
     parser.add_argument('--writable-root', action='store_true', help='Enable userdata-only eMMC writes and development writable HFS root')
     parser.add_argument('--platform-root', action='store_true', help='Development platform status for signed binaries on read-only root')
@@ -42,6 +43,8 @@ def main():
     parser.add_argument('--bringup-init', action='store_true', help='Build minimal PID 1 and boot it through mockfs/md0')
     parser.add_argument('--kernel-build-json', type=Path)
     args = parser.parse_args()
+    if args.development_launchd_cache and not args.platform_root:
+        parser.error('--development-launchd-cache requires --platform-root')
     if args.dev_keystore and not args.writable_root:
         parser.error('--dev-keystore requires --writable-root')
     if args.writable_root and not args.emmc_root:
@@ -82,6 +85,8 @@ def main():
         cmdline = (memory['cmdline'] + ' a04br3.kernel=' + lock['kernel']['commit'] +
                    ' a04br3.bootshim=' + lock['bootshim']['commit'] +
                    ' a04br3.device=' + (git_revision(ROOT) or 'archive'))
+        if args.development_launchd_cache:
+            cmdline += ' launchd_unsecure_cache=1'
         if args.dev_keystore:
             cmdline += ' a04br3.dev_keystore=1'
         if args.writable_root:
