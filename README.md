@@ -387,3 +387,11 @@ The 14 GiB root fits this layout, but does not fit the old userdata partition.
 Generate and validate both GPT copies with `tools/gpt.py`. GPT, boot and root
 writes must use the new layout's exact offsets; do not write this image using
 the old userdata address. Source copying and VM tests do not modify a device.
+
+Build full-donor boot images with --full-donor-root together with the
+existing explicit writable/platform-root, development KeyStore and unsigned
+launchd-cache options. This requests only CSR_ALLOW_UNRESTRICTED_FS plus
+the unauthenticated development-root policy, so the native shared cache
+can map without BSD SF_RESTRICTED flags unavailable through Linux FUSE.
+Other SIP restrictions are not requested to be disabled by this option.
+The VM initramfs includes nls_utf8 for the native HFS+ mount.

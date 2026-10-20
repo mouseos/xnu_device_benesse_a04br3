@@ -68,7 +68,7 @@ def runtime(out,kernel_deb):
         subprocess.run(['dpkg-deb','-x',str(package),str(extracted)],check=True)
         module_root=extracted/'lib/modules'/version
     modules=[]
-    for name in ('hfsplus','9p','9pnet_virtio'):
+    for name in ('nls_utf8','hfsplus','9p','9pnet_virtio'):
         command=['modprobe','--set-version',version,'--show-depends',name]
         if str(module_root).startswith(str(extracted)):command[1:1]=['--dirname',str(extracted)]
         for line in subprocess.check_output(command,text=True).splitlines():
