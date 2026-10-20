@@ -450,3 +450,9 @@ The locked shim emits the same number of physical Aff0 CPU nodes; the kernel
 starts each through PSCI and verifies SGI1 delivery before publishing readiness.
 SMP compilation and CPU-online logs alone do not verify iOS GUI operation or
 measure boot-time speedup. CPU suspend/restart remains unsupported.
+
+`--emmc-dma` opts into descriptor-based read DMA only after a byte-for-byte
+comparison with a PIO read of the same sectors. It retains PIO writes and
+inherited card timing. Allocation/probe failure retains PIO; an engine that
+cannot stop panics before its memory could be reused. This option requires
+the locked kernel and `--emmc-root`. Throughput requires physical testing.

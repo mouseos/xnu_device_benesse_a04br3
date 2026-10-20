@@ -49,7 +49,10 @@ def main():
     parser.add_argument('--bringup-init', action='store_true', help='Build minimal PID 1 and boot it through mockfs/md0')
     parser.add_argument('--kernel-build-json', type=Path)
     parser.add_argument("--cpus", type=int, choices=(1, 2, 4), default=1, help="Opt-in A35 SMP development topology; default one CPU")
+    parser.add_argument("--emmc-dma", action="store_true", help="Opt-in read descriptor DMA after PIO byte comparison")
     args = parser.parse_args()
+    if args.emmc_dma and not args.emmc_root:
+        parser.error("--emmc-dma requires --emmc-root")
     if args.cpus != 1 and not args.full_donor_root:
         parser.error("--cpus > 1 requires full donor root")
     if args.uart_samples and not args.full_donor_root:
@@ -112,6 +115,8 @@ def main():
         cmdline = re.sub(r'(?<!\S)cpus=\d+(?!\S)', 'cpus=' + str(args.cpus), cmdline)
         if args.full_donor_root:
             cmdline += ' a04br3.full_root=1'
+        if args.emmc_dma:
+            cmdline += ' a04br3.msdc_dma=1'
         if args.uart_samples:
             cmdline += ' a04br3.sample_uart=1'
         if args.prepare_development_root:
