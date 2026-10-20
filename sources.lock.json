@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "133e9ec8a8b6af4bca4e69d43218a1b833a312e9",
-    "role": "Cortex-A35 boot CPU with MT8167 GICv2 timer and SGI"
+    "commit": "02b9b0affc7d5a7c1bdde65d1be468ca91f1acc5",
+    "role": "Late inherited watchdog quiescence after actual self IPI"
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
