@@ -88,7 +88,7 @@ def main():
                 parser.error('--rootfs must be a raw HFS+ volume')
             cmdline += ' rd=md0'
         if args.emmc_root:
-            cmdline += ' rd=emmcroot0'
+            cmdline += ' rd=emmcroot0 a04br3.unsealed_root=1'
         if args.msdc_probe or args.emmc_root:
             cmdline += ' a04br3.msdc_probe=1'
         raw, kernel_info = payload.build(kernel, int(memory['physical_base'], 0),

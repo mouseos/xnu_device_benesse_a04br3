@@ -199,3 +199,8 @@ checks its bounds, and exposes only read access through the BSD driver.
 Writing the root image replaces the existing userdata filesystem. The GPT
 and boot-chain partition locations remain unchanged. Root data is generated
 by `tools/mkhfsroot.py`, not a downloaded or patched executable image.
+
+The unsigned development HFS root uses the explicit
+`a04br3.unsealed_root=1` argument supplied by `--emmc-root`. Only unsupported
+HFS root-authentication ioctls are allowed; a reported authentication failure
+remains fatal. This does not establish an Apple verified boot chain.
