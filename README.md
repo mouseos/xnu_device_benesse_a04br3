@@ -401,3 +401,7 @@ donor roots. The saved plan and runtime are checked, an exclusive process
 lock prevents duplicate writers, and the image is checked before mounting.
 Rsync resumes the complete tree without recopying unchanged file data; source
 guest scripts and initramfs are regenerated without reinstalling the kernel.
+
+Readonly 9p exports use a 1 MiB message size and loose caching. Sources must
+remain immutable during the copy; this avoids repeated small host/FUSE reads
+and metadata round trips across the full donor tree.

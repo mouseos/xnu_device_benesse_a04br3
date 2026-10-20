@@ -115,8 +115,9 @@ def main():
     roots={'os':a.os_root,'system':a.system_root,'app':a.app_root}
     if a.probe:
         roots={name:out/('fixture-'+name) for name in roots}
-        for root in roots.values():root.mkdir()
-        (roots['os']/'file').write_bytes(b'fixture');(roots['os']/'alias').symlink_to('file')
+        for root in roots.values():root.mkdir(exist_ok=a.resume)
+        (roots['os']/'file').write_bytes(b'fixture')
+        if not (roots['os']/'alias').is_symlink():(roots['os']/'alias').symlink_to('file')
         (roots['os']/'unicode-é').write_bytes(b'unicode')
     elif any(path is None or not path.is_dir() for path in roots.values()) or not a.probes:
         p.error('all three mounted donor roots and source-built probes required')

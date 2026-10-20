@@ -7,10 +7,10 @@ mount -t sysfs sysfs /sys
 mount -t devtmpfs devtmpfs /dev
 for module in /modules/*.ko; do insmod "$module"; done
 mkdir -p /source-os /source-system /source-app /input /target
-mount -t 9p -o trans=virtio,version=9p2000.L,ro os /source-os
-mount -t 9p -o trans=virtio,version=9p2000.L,ro system /source-system
-mount -t 9p -o trans=virtio,version=9p2000.L,ro app /source-app
-mount -t 9p -o trans=virtio,version=9p2000.L,ro input /input
+mount -t 9p -o trans=virtio,version=9p2000.L,msize=1048576,cache=loose,ro os /source-os
+mount -t 9p -o trans=virtio,version=9p2000.L,msize=1048576,cache=loose,ro system /source-system
+mount -t 9p -o trans=virtio,version=9p2000.L,msize=1048576,cache=loose,ro app /source-app
+mount -t 9p -o trans=virtio,version=9p2000.L,msize=1048576,cache=loose,ro input /input
 mount -t hfsplus -o force /dev/vda /target
 if [ "$(cat /input/mode)" = probe ]; then
     rsync -aH --numeric-ids /source-os/ /target/
