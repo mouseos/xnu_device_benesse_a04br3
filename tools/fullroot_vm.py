@@ -46,9 +46,22 @@ def copy_program(program,destination,guest_path=None):
         output.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(path,output)
 
 
+def pack_initramfs(initrd,archive):
+    paths=subprocess.check_output(['find','.','-print0'],cwd=initrd)
+    with tempfile.TemporaryFile() as stream:
+        subprocess.run(['cpio','--null','-o','--format=newc','--owner=0:0'],input=paths,cwd=initrd,stdout=stream,check=True)
+        stream.seek(0)
+        with gzip.open(archive,'wb') as output:shutil.copyfileobj(stream,output)
+
+
 def runtime(out,kernel_deb):
     version=LOCK['kernel_version'];checked_package(kernel_deb,LOCK['kernel'])
-    extracted=out/'linux';extracted.mkdir()
+    extracted=out/'linux';initrd=out/'initrd-tree';archive=out/'initramfs.cpio.gz'
+    if (extracted/'boot'/('vmlinuz-'+version)).is_file() and (initrd/'init').is_file() and archive.is_file():
+        shutil.copyfile(TOOLS/'fullroot_guest.sh',initrd/'init')
+        pack_initramfs(initrd,archive)
+        return extracted/'boot'/('vmlinuz-'+version),archive
+    extracted.mkdir()
     subprocess.run(['dpkg-deb','-x',str(kernel_deb),str(extracted)],check=True)
     initrd=out/'initrd-tree';initrd.mkdir()
     for path in ('proc','sys','dev','bin','sbin','usr/bin','modules','lib64'): (initrd/path).mkdir(parents=True,exist_ok=True)
@@ -82,11 +95,7 @@ def runtime(out,kernel_deb):
         else:shutil.copy2(source,target)
     shutil.copyfile(TOOLS/'fullroot_guest.sh',initrd/'init');os.chmod(initrd/'init',0o755)
     archive=out/'initramfs.cpio.gz'
-    paths=subprocess.check_output(['find','.','-print0'],cwd=initrd)
-    with tempfile.TemporaryFile() as stream:
-        subprocess.run(['cpio','--null','-o','--format=newc','--owner=0:0'],input=paths,cwd=initrd,stdout=stream,check=True)
-        stream.seek(0)
-        with gzip.open(archive,'wb') as output:shutil.copyfileobj(stream,output)
+    pack_initramfs(initrd,archive)
     return extracted/'boot'/('vmlinuz-'+version),archive
 
 
@@ -95,10 +104,14 @@ def main():
     p.add_argument('--os-root',type=Path);p.add_argument('--system-root',type=Path);p.add_argument('--app-root',type=Path)
     p.add_argument('--probes',type=Path);p.add_argument('--out',required=True,type=Path)
     p.add_argument('--kernel-deb',required=True,type=Path);p.add_argument('--mkfs',default='mkfs.hfsplus');p.add_argument('--fsck',default='fsck.hfsplus')
-    p.add_argument('--log',required=True,type=Path);p.add_argument('--probe',action='store_true')
+    p.add_argument('--log',required=True,type=Path);p.add_argument('--probe',action='store_true');p.add_argument('--resume',action='store_true')
     a=p.parse_args();out=a.out.resolve()
-    if out.exists():p.error('refusing to overwrite an existing output directory')
-    out.mkdir(parents=True);inputs=out/'input';inputs.mkdir()
+    if out.exists() and not a.resume:p.error('existing output needs explicit --resume')
+    if a.resume and not (out/'copy-plan.json').is_file():p.error('no resumable copy plan')
+    out.mkdir(parents=True,exist_ok=a.resume);inputs=out/'input';inputs.mkdir(exist_ok=a.resume)
+    import fcntl
+    process_lock=(out/'.builder.lock').open('a')
+    fcntl.flock(process_lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
     roots={'os':a.os_root,'system':a.system_root,'app':a.app_root}
     if a.probe:
         roots={name:out/('fixture-'+name) for name in roots}
@@ -108,8 +121,12 @@ def main():
     elif any(path is None or not path.is_dir() for path in roots.values()) or not a.probes:
         p.error('all three mounted donor roots and source-built probes required')
     for name in ('fullroot_xattrs.py','fullroot_finish.py'):shutil.copyfile(TOOLS/name,inputs/name)
-    if a.probes:shutil.copytree(a.probes,inputs/'probes')
+    if a.probes:shutil.copytree(a.probes,inputs/'probes',dirs_exist_ok=a.resume)
     (inputs/'mode').write_text('probe' if a.probe else 'full')
+    plan={'roots':{n:str(r.resolve()) for n,r in roots.items()},'runtime':LOCK,'probe':a.probe}
+    plan_path=out/'copy-plan.json'
+    if a.resume and json.loads(plan_path.read_text())!=plan:raise ValueError('resume inputs differ from saved plan')
+    plan_path.write_text(json.dumps(plan,indent=2)+'\n')
     stats={}
     with (inputs/'xattrs.jsonl').open('w') as stream:
         for name,root in roots.items():
@@ -117,8 +134,13 @@ def main():
             stats[name]=fullroot_xattrs.export_tree(root,prefix,stream)
     kernel,initramfs=runtime(out,a.kernel_deb.resolve())
     image=out/'hfs-root.img';size=128*1024**2 if a.probe else 14*1024**3
-    with image.open('wb') as stream:stream.truncate(size)
-    subprocess.run([a.mkfs,'-s','-J','-v','A04BR3Root',str(image)],check=True)
+    if a.resume:
+        if image.stat().st_size!=size:raise ValueError('resume image size mismatch')
+        result=subprocess.run([a.fsck,'-fy',str(image)],capture_output=True,text=True)
+        (out/'fsck-resume.log').write_text(result.stdout+result.stderr)
+    else:
+        with image.open('wb') as stream:stream.truncate(size)
+        subprocess.run([a.mkfs,'-s','-J','-v','A04BR3Root',str(image)],check=True)
     command=['qemu-system-x86_64','-nodefaults','-nographic','-serial','stdio','-no-reboot','-m','2048','-smp','4',
         '-kernel',str(kernel),'-initrd',str(initramfs),'-append','console=ttyS0 panic=1 rdinit=/init',
         '-drive','file='+str(image)+',format=raw,if=virtio,cache=writeback']

@@ -395,3 +395,9 @@ the unauthenticated development-root policy, so the native shared cache
 can map without BSD SF_RESTRICTED flags unavailable through Linux FUSE.
 Other SIP restrictions are not requested to be disabled by this option.
 The VM initramfs includes nls_utf8 for the native HFS+ mount.
+
+A failed full copy may be retried with --resume using the same output and
+donor roots. The saved plan and runtime are checked, an exclusive process
+lock prevents duplicate writers, and the image is checked before mounting.
+Rsync resumes the complete tree without recopying unchanged file data; source
+guest scripts and initramfs are regenerated without reinstalling the kernel.

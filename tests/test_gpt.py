@@ -38,6 +38,15 @@ class GptTests(unittest.TestCase):
         self.assertEqual(new['system']['first_lba'] + new['system']['sectors'], new['flashinfo']['first_lba'])
         self.assertFalse({'metadata', 'cache', 'userdata', 'vendor'} & new.keys())
 
+    def test_full_root_fits_without_moving_bootchain(self):
+        old={p['name']:p for p in self.layout('android-gsi')['partitions']}
+        layout=self.layout('xnu-full-root');new={p['name']:p for p in layout['partitions']}
+        for name in set(new)-{'boot','userdata'}:self.assertEqual(new[name],old[name])
+        self.assertGreaterEqual(new['userdata']['sectors']*512,14*1024**3)
+        self.assertEqual(new['userdata']['first_lba'],new['boot']['first_lba']+new['boot']['sectors'])
+        primary,secondary,offset=build(layout)
+        self.assertEqual(primary[1024:],secondary[:-512])
+
     def test_overlaps_duplicates_and_out_of_bounds_are_rejected(self):
         layout = self.layout()
         for key, value in (('first_lba', 0), ('first_lba', 1024),
