@@ -8,6 +8,7 @@ from pathlib import Path
 import subprocess
 from bootimg import build_from_source, sha256
 import payload
+import mkinit
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -31,8 +32,11 @@ def main():
     parser.add_argument('--bootshim', type=Path, default=ROOT.parent / 'bootshim')
     parser.add_argument('--out', type=Path, default=ROOT.parent / 'out' / 'diagnostic')
     parser.add_argument('--kernel', type=Path)
+    parser.add_argument('--bringup-init', action='store_true', help='Build minimal PID 1 and boot it through mockfs/md0')
     parser.add_argument('--kernel-build-json', type=Path)
     args = parser.parse_args()
+    if args.bringup_init and not args.kernel:
+        parser.error('--bringup-init requires --kernel')
     lock = json.loads((ROOT / 'sources.lock.json').read_text())
     shim_root = args.bootshim.resolve()
     revision = git_revision(shim_root)
@@ -62,8 +66,17 @@ def main():
         memory = json.loads((ROOT / 'board.json').read_text())['xnu_handoff']
         cmdline = (memory['cmdline'] + ' a04br3.kernel=' + lock['kernel']['commit'] +
                    ' a04br3.bootshim=' + lock['bootshim']['commit'])
+        root_image = None
+        if args.bringup_init:
+            obj = destination / 'a04br3-init.o'
+            subprocess.run([os.environ.get('CLANG', 'clang'), '-target', 'arm64-apple-ios16.0',
+                            '-mcpu=cortex-a35', '-c', str(ROOT / 'tools/a04br3-init.S'),
+                            '-o', str(obj)], check=True)
+            root_image = mkinit.build(obj.read_bytes())
+            (destination / 'a04br3-init').write_bytes(root_image)
+            cmdline += ' rd=md0'
         raw, kernel_info = payload.build(kernel, int(memory['physical_base'], 0),
-                                         int(memory['managed_size'], 0), cmdline)
+                                         int(memory['managed_size'], 0), cmdline, ramdisk=root_image)
         packed = raw
         kernel_info.update(source_build=provenance,
                            payload_bytes=len(packed), kernel_sha256=sha256(kernel))

@@ -1,11 +1,11 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "23dd9d1363acd0fc159183c2b22ec6e7a490be06",
-    "role": "Portable AES-CBC provider for A04BR3"
+    "commit": "46f0b3cf83368692b6cffcffc5f28f5065217b26",
+    "role": "mockfs memory root and initial executable support"
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
-    "commit": "acf2e91ade6c17ff922cf5f68f5d1b5ac176f7fc"
+    "commit": "9035a0b4b52a88e6221fba7db1a0cb175b78dde1"
   }
 }

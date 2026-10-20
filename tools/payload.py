@@ -144,7 +144,7 @@ def resolve_chains(data, segments, fixups):
 
 
 def build(kernel, phys_base=0x60000000, mem_size=0x18000000,
-          cmdline='-v serial=3 debug=0x14e keepsyms=1 cpus=1'):
+          cmdline='-v serial=3 debug=0x14e keepsyms=1 cpus=1', ramdisk=None):
     data = bytearray(kernel)
     segments, entry, fixups = macho(data)
     resolved = resolve_chains(data, segments, fixups)
@@ -158,7 +158,12 @@ def build(kernel, phys_base=0x60000000, mem_size=0x18000000,
     end_pa = align(phys_base + segment_end - virtual, PAGE)
     if end_pa + 2 * PAGE > phys_base + mem_size:
         raise ValueError('kernel plus ADT/boot_args exceeds the managed window')
-    offset = align(HEADER.size + SEGMENT.size * len(segments), 64)
+    if ramdisk is not None and not ramdisk:
+        raise ValueError('empty root RAMDisk')
+    count = len(segments) + (ramdisk is not None)
+    if count > 16:
+        raise ValueError('too many payload segments')
+    offset = align(HEADER.size + SEGMENT.size * count, 64)
     payload = bytearray(offset)
     for i, s in enumerate(segments):
         if s['va'] < virtual or s['va'] - virtual + s['memory'] > mem_size:
@@ -168,13 +173,24 @@ def build(kernel, phys_base=0x60000000, mem_size=0x18000000,
                           destination, s['memory'], len(payload), s['size'])
         payload += data[s['offset']:s['offset'] + s['size']]
         payload += bytes(-len(payload) % 8)
-    HEADER.pack_into(payload, 0, b'A04XNU01', 1, len(segments), virtual, phys_base,
+    ramdisk_info = None
+    if ramdisk is not None:
+        rd_size = align(len(ramdisk), PAGE)
+        if end_pa + rd_size + 2 * PAGE > phys_base + mem_size:
+            raise ValueError('RAMDisk plus ADT/boot_args exceeds managed memory')
+        SEGMENT.pack_into(payload, HEADER.size + len(segments) * SEGMENT.size,
+                          end_pa, rd_size, len(payload), len(ramdisk))
+        ramdisk_info = dict(physical=end_pa, size=rd_size, file_size=len(ramdisk))
+        payload += ramdisk
+        payload += bytes(-len(payload) % 8)
+        end_pa += rd_size
+    HEADER.pack_into(payload, 0, b'A04XNU01', 2 if ramdisk is not None else 1, count, virtual, phys_base,
                      mem_size, entry, end_pa, HEADER.size, offset, len(payload), command)
     if len(payload) > 0x8000000:
         raise ValueError('payload exceeds the 128 MiB loader limit')
     return bytes(payload), dict(chained_rebases=resolved, segments=len(segments),
                                virt_base=virtual, phys_base=phys_base, mem_size=mem_size,
-                               entry_va=entry, kernel_end_pa=end_pa)
+                               entry_va=entry, kernel_end_pa=end_pa, ramdisk=ramdisk_info)
 
 
 def main():

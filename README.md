@@ -164,3 +164,11 @@ payload builder and shim reject lower, noncanonical kernel windows. The kernel
 target uses the normal ARM64 link base 0xfffffff007004000 and disables the Apple
 MacOSX large-memory VA layout. The previous 0xfffffe0007004000 link base was
 outside that bootstrap range; it must not be reused with this board setup.
+
+Minimal userspace bring-up: add `--bringup-init` to the source image build
+command with `--kernel` and `--kernel-build-json`. Clang assembles
+`tools/a04br3-init.S` for Cortex-A35; `mkinit.py` creates a static ad-hoc signed
+Mach-O and the payload includes it as a RAMDisk. `rd=md0` selects Apple's
+built-in memory device and mockfs exposes it as `/sbin/launchd`. This PID 1
+prints a banner and periodic heartbeat through `/dev/console`; it does not
+provide an iOS or macOS environment. No prebuilt executable is required.

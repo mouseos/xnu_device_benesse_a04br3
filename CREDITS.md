@@ -31,3 +31,9 @@ https://github.com/apple-oss-distributions/xnu/tree/xnu-8796.141.3 .
 The Android rollback layout records the existing A04BR3 AOSP port partition
 definition; the XNU layout retains its required boot-chain locations and LK
 attributes. No calibration data or proprietary boot images are included.
+
+`tools/mkinit.py` and `tools/a04br3-init.S` are adapted copies of
+`tools/mkinit.py` and `tools/sweet-init.S` from dipa-studio/ios-sweet,
+commit `fdad0de8dc0e75c5ea84762adc03f7232dc91f19`; original contributors
+retain credit. This minimal diagnostic PID 1 is built from assembly source.
+It is not Apple launchd or an iOS userland distribution.

@@ -39,6 +39,19 @@ class PayloadTests(unittest.TestCase):
         self.assertEqual(data[offset:offset + size], kernel_fixture())
         self.assertEqual(info['chained_rebases'], 0)
 
+    def test_root_ramdisk_segment_and_bounds(self):
+        root = b'root executable' * 100
+        data, info = build(kernel_fixture(), ramdisk=root)
+        self.assertEqual(HEADER.unpack_from(data)[:3], (b'A04XNU01', 2, 2))
+        pa, memory, offset, size = SEGMENT.unpack_from(data, HEADER.size + SEGMENT.size)
+        self.assertEqual((pa, memory, size), (0x6100c000, 0x4000, len(root)))
+        self.assertEqual(data[offset:offset + size], root)
+        self.assertEqual(info['kernel_end_pa'], pa + memory)
+        with self.assertRaises(ValueError):
+            build(kernel_fixture(), ramdisk=b'')
+        with self.assertRaises(ValueError):
+            build(kernel_fixture(), mem_size=0x1014000, ramdisk=bytes(0x10000))
+
     def test_rebase_of_source_kernel(self):
         data, info = build(kernel_fixture(chain=True))
         _, _, offset, _ = SEGMENT.unpack_from(data, HEADER.size)
