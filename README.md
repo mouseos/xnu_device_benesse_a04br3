@@ -277,3 +277,10 @@ image. The explicit flag substitutes read-only root membership for the
 missing Apple trust cache when assigning platform status; it is not secure
 boot. XML entitlements must match the code directory, and missing/DER-only
 entitlements are not granted.
+
+HFS boot-task roots include the original donor /sbin/mount_hfs and the
+identical helper at /Library/Filesystems/hfs.fs/Contents/Resources/mount_hfs,
+which mount may choose as its fallback path. Bootshim emits a 48-byte
+/chosen/boot-manifest-hash naming the A04BR3 development preboot namespace
+(SHA-384 of the documented fixed development label), not an authenticated
+Apple boot manifest. Root and block device remain read-only in this stage.

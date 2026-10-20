@@ -47,6 +47,10 @@ def main():
         if not a.os_root:p.error('--pid1 apple requires --os-root')
         boot_files,tasks=boot_tasks.donor_files(pid1,a.os_root)
         files.update(boot_files)
+        helper=a.os_root/'sbin/mount_hfs'
+        if not helper.is_file():p.error('donor /sbin/mount_hfs required')
+        files['/sbin/mount_hfs']=helper
+        files['/Library/Filesystems/hfs.fs/Contents/Resources/mount_hfs']=helper
         version=a.os_root/'System/Library/CoreServices/SystemVersion.plist'
         if version.is_file():files['/System/Library/CoreServices/SystemVersion.plist']=version
     for file in sorted(cache.glob('dyld_shared_cache_arm64*')):
