@@ -28,6 +28,13 @@ path=root/'private/var/keybags';path.mkdir(parents=True,exist_ok=True);os.chmod(
 seed=path/'systembag.kb';seed.write_bytes(plistlib.dumps({'KeyBagKeys':b''}));os.chmod(seed,0o600)
 for directory in ('private/var/run','private/var/tmp','private/var/db/timezone','private/var/log/com.apple.xpc.launchd','Library/Preferences/FeatureFlags'):
     (root/directory).mkdir(parents=True,exist_ok=True)
+# Container parents are normally established by restore, not the OS image.
+for directory in ('containers','containers/Bundle','containers/Bundle/Application',
+                  'containers/Data','containers/Data/Application','containers/Data/System',
+                  'containers/Shared','containers/Shared/SystemGroup','containers/Temp'):
+    path=root/'private/var'/directory
+    if not path.exists():
+        path.mkdir(mode=0o755);os.chown(path,0,0)
 os.chmod(root/'private/var/tmp',0o1777)
 # Retain the source-built diagnostic and probe; donor launchd stays untouched.
 for source,target in [('a04br3-init','usr/local/libexec/a04br3-diagnostic-init'),('dynamic-probe','usr/bin/a04br3-dynamic-probe')]:

@@ -32,6 +32,7 @@ def main():
     parser.add_argument('--bootshim', type=Path, default=ROOT.parent / 'bootshim')
     parser.add_argument('--out', type=Path, default=ROOT.parent / 'out' / 'diagnostic')
     parser.add_argument('--kernel', type=Path)
+    parser.add_argument('--prepare-development-root',action='store_true',help='Create missing container parents on the full writable development root')
     parser.add_argument('--display-probe',action='store_true',help='Opt-in reserved LK framebuffer RGB probe and Video handoff')
     parser.add_argument('--full-donor-root',action='store_true',help='Explicit filesystem development policy for complete donor copy')
     parser.add_argument('--development-launchd-cache',action='store_true',help='Explicitly use the development unsigned launchd service cache')
@@ -45,6 +46,8 @@ def main():
     parser.add_argument('--bringup-init', action='store_true', help='Build minimal PID 1 and boot it through mockfs/md0')
     parser.add_argument('--kernel-build-json', type=Path)
     args = parser.parse_args()
+    if args.prepare_development_root and not args.full_donor_root:
+        parser.error('--prepare-development-root requires --full-donor-root')
     if args.display_probe and not args.full_donor_root:
         parser.error('--display-probe requires --full-donor-root')
     if args.full_donor_root and not (args.writable_root and args.platform_root):
@@ -98,6 +101,8 @@ def main():
                    ' a04br3.device=' + (git_revision(ROOT) or 'archive'))
         if args.full_donor_root:
             cmdline += ' a04br3.full_root=1'
+        if args.prepare_development_root:
+            cmdline += ' a04br3.prepare_root=1'
         if args.display_probe:
             cmdline += ' a04br3.display_probe=1'
         if args.development_launchd_cache:

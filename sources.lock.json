@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "86f3b52bfbef37fa87f91da7ceaff46c6184039f",
-    "role": "Development Sandbox and bounded live window-server stack samples"
+    "commit": "469714bae97a9b9758a3026e7dae4db3415a6cb0",
+    "role": "Opt-in development container parent creation and built-in UID/GID resolver"
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
