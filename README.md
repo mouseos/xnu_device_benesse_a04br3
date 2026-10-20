@@ -435,7 +435,11 @@ releases it. No mtkclient source or binary patch is involved. Actual FUSE tests
 cover offsets, lengths, EOF, directory enumeration and rejection of writes.
 
 `--display-probe` requires `--full-donor-root` and writes a 24-row RGB
-marker to all three FDT-reserved LK framebuffer pages (800x1280, BGRA32,
-3200-byte stride, base 0xbe9c0000), then supplies XNU boot_args Video.
+marker to all four FDT-reserved LK framebuffer surfaces (800x1280, BGRA32,
+3200-byte stride, base 0xbe9c0000), with opaque alpha=0xff, then supplies XNU boot_args Video.
 No display-controller registers are changed. This tests physical scanout;
 it does not supply IOSurface/IOMobileFramebuffer or establish GUI boot.
+
+The kernel display probe additionally clears all four surfaces to opaque
+black before drawing the RGB band, following the working EDK2 SimpleFbDxe
+contract (PCD Layers=3 is an inclusive upper index).
