@@ -37,9 +37,9 @@ def main():
     (tree/'tmp').chmod(0o1777)
     subprocess.run(['sudo','chown','-R','0:0',str(tree)],check=True)
     dmg=out/'root.dmg'; cdr=out/'root.cdr'
-    subprocess.run(['hdiutil','create','-size','32m','-fs','HFS+','-volname','A04BR3Root',
+    subprocess.run(['sudo','hdiutil','create','-size','32m','-fs','HFS+','-volname','A04BR3Root',
                     '-layout','NONE','-srcfolder',str(tree),'-format','UDRW',str(dmg)],check=True)
-    subprocess.run(['hdiutil','convert',str(dmg),'-format','UDTO','-o',str(cdr)],check=True)
+    subprocess.run(['sudo','hdiutil','convert',str(dmg),'-format','UDTO','-o',str(cdr)],check=True)
     data=cdr.read_bytes()
     if data[1024:1026] not in (b'H+',b'HX'):
         raise RuntimeError('expected a raw HFS+ volume at offset zero')
