@@ -37,3 +37,11 @@ attributes. No calibration data or proprietary boot images are included.
 commit `fdad0de8dc0e75c5ea84762adc03f7232dc91f19`; original contributors
 retain credit. This minimal diagnostic PID 1 is built from assembly source.
 It is not Apple launchd or an iOS userland distribution.
+
+Complete root assembly follows the owner/link/cryptex/logd layout described
+by `tools/mkiosroot.sh` in the same ios-sweet reference revision. The rootless
+QEMU runtime, checked resume mechanism, native-xattr translation, allocation
+flash planner and FUSE range-view helper are original port source. Linux HFS+
+handles filesystem construction; Ubuntu packages supply the declared guest
+runtime, rsync and filesystem tools. FUSE 2.x provides the range-view API.
+Donor OS files remain local inputs and are not distributed in these repos.

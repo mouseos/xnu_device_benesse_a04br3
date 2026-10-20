@@ -6,6 +6,8 @@ import json
 import os
 from pathlib import Path
 import struct
+import shlex
+import subprocess
 import gpt
 
 
@@ -55,7 +57,7 @@ def copy_range(source,target,offset,length):
             left-=written
 
 
-def plan(image,boot,layout,out):
+def plan(image,boot,layout,out,range_view=False):
     image=image.resolve();boot=boot.resolve();out=out.resolve()
     if any(c.isspace() for c in str(out)+str(boot)):raise ValueError('mtkclient script output path cannot contain whitespace')
     if out.exists():raise ValueError('refusing to overwrite flash plan')
@@ -64,28 +66,36 @@ def plan(image,boot,layout,out):
     if image.stat().st_size>root['sectors']*sector or boot.stat().st_size>kernel['sectors']*sector:raise ValueError('artifact exceeds target partition')
     primary,secondary,backup=gpt.build(layout)
     runs=allocated_runs(image);out.mkdir(parents=True)
-    commands=[];records=[]
+    commands=[];records=[];view=out/'range-view'
+    if range_view:view.mkdir()
     with image.open('rb') as source:
         for index,(offset,length) in enumerate(runs):
             if offset+length>root['sectors']*sector:raise ValueError('HFS range exceeds userdata')
-            path=out/f'userdata-{index:04}.bin';copy_range(source,path,offset,length)
+            path=(view if range_view else out)/f'userdata-{index:04}.bin'
+            if not range_view:copy_range(source,path,offset,length)
             address=root['first_lba']*sector+offset
             commands.append(f'wo {address:#x} {length:#x} {path}\n')
             records.append({'partition':'userdata','source_offset':offset,'offset':address,'length':length,'file':str(path)})
+    if range_view:
+        manifest=out/'ranges.tsv';manifest.write_text(''.join(f'{r["source_offset"]:x} {r["length"]:x} {Path(r["file"]).name}\n' for r in records))
+        program=out/'range-view-helper'
+        flags=shlex.split(subprocess.check_output(['pkg-config','--cflags','--libs','fuse'],text=True))
+        subprocess.run(['cc','-O2','-Wall','-Wextra','-Werror',str(Path(__file__).with_name('range_view.c')), *flags,'-o',str(program)],check=True)
+        subprocess.run([str(program),str(image),str(manifest),str(view)],check=True)
     commands.append(f'wo {kernel["first_lba"]*sector:#x} {boot.stat().st_size:#x} {boot}\n')
     # Activate new layout after root/boot data and backup GPT are in place.
     for name,address,data in [('gpt-secondary.bin',backup,secondary),('gpt-primary.bin',0,primary)]:
         path=out/name;path.write_bytes(data);commands.append(f'wo {address:#x} {len(data):#x} {path}\n')
     (out/'write.mtk').write_text(''.join(commands))
-    info={'kind':'full-filesystem-allocation-plan','old_image_required':False,'image':str(image),'image_bytes':image.stat().st_size,
+    info={'kind':'full-filesystem-allocation-plan','old_image_required':False,'range_view':range_view,'image':str(image),'image_bytes':image.stat().st_size,
           'root_write_bytes':sum(n for _,n in runs),'unallocated_bytes_skipped':image.stat().st_size-sum(n for _,n in runs),
           'layout':layout,'ranges':records,'boot':str(boot),'gpt_activation_last':True}
     (out/'flash-plan.json').write_text(json.dumps(info,indent=2)+'\n');return info
 
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--image',required=True,type=Path);p.add_argument('--boot',required=True,type=Path)
-    p.add_argument('--layout',required=True,type=Path);p.add_argument('--out',required=True,type=Path);a=p.parse_args()
+    p.add_argument('--range-view',action='store_true',help='Use zero-copy read-only FUSE range files instead of staging copies');p.add_argument('--layout',required=True,type=Path);p.add_argument('--out',required=True,type=Path);a=p.parse_args()
     ready=json.loads((a.image.parent/'root-build.json').read_text())
     if ready.get('kind')!='full-donor-root' or ready.get('probe'):raise SystemExit('verified complete donor root required')
-    info=plan(a.image,a.boot,json.loads(a.layout.read_text()),a.out)
+    info=plan(a.image,a.boot,json.loads(a.layout.read_text()),a.out,range_view=a.range_view)
     print(json.dumps({k:v for k,v in info.items() if k not in ('ranges','layout')},indent=2))

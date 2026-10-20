@@ -424,3 +424,12 @@ ranges without a userspace buffer when supported. Boot and backup GPT follow
 the root data, and primary GPT activates the new layout last. This saves
 transferring filesystem free space while keeping all live data and metadata.
 Never run the script until the final fsck-verified root-build.json exists.
+
+`fullroot_flash.py --range-view` avoids staging a second copy of the used
+blocks. It compiles the source `range_view.c` with the host's libfuse 2.x
+headers (`cc`, `pkg-config`, `libfuse-dev`) and mounts immutable read-only
+virtual range files over the verified image. Unmodified mtkclient sees exact
+file sizes and reads the corresponding source offsets. Keep the image and
+mount unchanged until all writes finish; then `fusermount -u PLAN_DIR/range-view`
+releases it. No mtkclient source or binary patch is involved. Actual FUSE tests
+cover offsets, lengths, EOF, directory enumeration and rejection of writes.
