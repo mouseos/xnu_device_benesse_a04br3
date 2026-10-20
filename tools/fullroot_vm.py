@@ -38,7 +38,9 @@ def copy_program(program,destination,guest_path=None):
     source=Path(shutil.which(program) or program).resolve()
     target=destination/(guest_path or str(source)).lstrip('/')
     target.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(source,target)
-    dependencies=subprocess.check_output(['ldd',str(source)],text=True,stderr=subprocess.STDOUT)
+    result=subprocess.run(['ldd',str(source)],text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+    if result.returncode and not any(x in result.stdout for x in ('not a dynamic executable','statically linked')):raise RuntimeError(result.stdout)
+    dependencies=result.stdout
     for library in re.findall(r'(?<!\S)(/[^\s()]+)',dependencies):
         path=Path(library);output=destination/str(path).lstrip('/')
         output.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(path,output)
