@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "15caf04af2e3fa6f17ccf6b38711e55a0d9c1bb8",
-    "role": "A35 SMP/DMA with VirtualAudio isolation and installer/locationd wait capture"
+    "commit": "77517190f708a20bda3edbd1ef0a4802f400eba1",
+    "role": "Explicit native FairPlay unavailable-service experiment; SMP/DMA and locationd diagnostics"
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",

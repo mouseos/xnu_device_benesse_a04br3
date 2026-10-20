@@ -52,7 +52,11 @@ def main():
     parser.add_argument("--emmc-dma", action="store_true", help="Opt-in read descriptor DMA after PIO byte comparison")
     parser.add_argument("--virtual-audio", choices=("unchanged","disabled","restored"),
         default="unchanged", help="Reversible development HAL plug-in move before launchd")
+    parser.add_argument("--fairplay-service", choices=("unchanged","disabled","restored"),
+        default="unchanged", help="Development native launchd override; does not implement FairPlay")
     args = parser.parse_args()
+    if args.fairplay_service != "unchanged" and not (args.full_donor_root and args.prepare_development_root):
+        parser.error("--fairplay-service requires full donor root preparation")
     if args.virtual_audio != "unchanged" and not (args.full_donor_root and args.prepare_development_root):
         parser.error("--virtual-audio requires full donor root preparation")
 
@@ -124,6 +128,8 @@ def main():
             cmdline += ' a04br3.msdc_dma=1'
         if args.virtual_audio != "unchanged":
             cmdline += ' a04br3.no_va=' + ('1' if args.virtual_audio == 'disabled' else '2')
+        if args.fairplay_service != "unchanged":
+            cmdline += ' a04br3.fp=' + ('1' if args.fairplay_service == 'disabled' else '2')
 
         if args.uart_samples:
             cmdline += ' a04br3.sample_uart=1'
