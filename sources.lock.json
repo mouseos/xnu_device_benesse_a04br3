@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "3f02f14e450414a62dcf788220c666d502063ef9",
-    "role": "A35 SMP/DMA with VirtualAudio isolation and installation-service wait capture"
+    "commit": "15caf04af2e3fa6f17ccf6b38711e55a0d9c1bb8",
+    "role": "A35 SMP/DMA with VirtualAudio isolation and installer/locationd wait capture"
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
