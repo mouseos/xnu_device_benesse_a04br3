@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "b00c03bb2e2d335cb7b1710eab110e410113dd15",
-    "role": "Native open Wi-Fi/current peer, explicit root queued UART snapshots, console recovery, boot updater, framebuffer capture, static IOKit/HID and GPU readback candidate; hardware validation separate."
+    "commit": "de64dea474fa94dbeb6ca4f7af36149b792ad557",
+    "role": "Native open association/current peer plus firmware-backed bounded disconnect, explicit snapshots and existing console/update/capture/board compatibility. Firmware and UI execution remain unverified."
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
