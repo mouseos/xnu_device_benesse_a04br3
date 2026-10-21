@@ -1,11 +1,11 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "b7e278b3af9623986a5d82b5e17e19ee406d634d",
-    "role": "MT6630 SDIO identification transport with verified Rogue power probe"
+    "commit": "c0349316bc1f13b3ac4d9b1e63a05051670a23f5",
+    "role": "iPad tablet product, MT6630 WMT transport, inert GPU memory reservation"
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
-    "commit": "300055f975d1f671f0e7c559e812ac3ae1abaef0"
+    "commit": "c5423478e237698a1f2e58103967b423ea10d410"
   }
 }
