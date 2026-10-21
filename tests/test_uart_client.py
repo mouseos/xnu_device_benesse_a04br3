@@ -239,10 +239,15 @@ class UARTClientTests(unittest.TestCase):
             if str(path) == str(uart_path):
                 flags_seen.append(flags)
             return real_open(path, flags, *args, **kwargs)
+        pending = bytearray()
         def write_fd(fd, line):
-            fields = line.split()
+            pending.extend(line)
+            if not pending.endswith(b'\n'):
+                return
+            fields = bytes(pending).split()
+            pending.clear()
             with sim.raw_path.open('ab') as output:
-                output.write(b'\n!A04 ' + fields[1] + b' OK ready\n')
+                output.write(b'\n!A04 ' + fields[1] + b' OK ready\r\r\n')
         with mock.patch.object(uart.os, 'open', side_effect=open_fd), \
              mock.patch.object(uart, 'write_all', side_effect=write_fd), \
              mock.patch('sys.stdout', new_callable=io.StringIO):
@@ -251,6 +256,19 @@ class UARTClientTests(unittest.TestCase):
         self.assertEqual(flags_seen, [os.O_WRONLY | os.O_NOCTTY])
         self.assertEqual(uart_path.read_bytes(), b'')
         self.assertTrue(log.read_text())
+
+
+class PacedWire(unittest.TestCase):
+    def test_pacing_preserves_every_byte_and_boundaries(self):
+        writes=[];delays=[]
+        with mock.patch.object(uart, 'write_all', side_effect=lambda fd,b:writes.append((fd,b))):
+            uart.write_paced(7,b'abcdefghij',burst=3,interval=.02,sleep=delays.append)
+        self.assertEqual(writes,[(7,b'abc'),(7,b'def'),(7,b'ghi'),(7,b'j')])
+        self.assertEqual(delays,[.02]*4)
+    def test_real_console_double_cr_and_noise(self):
+        p=uart.ReplyParser()
+        self.assertEqual(p.feed(b'noise\r\r\n!A04 a OK version=1\r'),[])
+        self.assertEqual(p.feed(b'\r\n'),[('a','OK','version=1')])
 
 
 if __name__ == '__main__':

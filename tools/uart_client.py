@@ -24,7 +24,7 @@ BLOCK_BYTES = 384
 ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_LOG = ROOT / 'gsi/logs/ios-feasibility/self-update/uart-client.jsonl'
 ID_RE = re.compile(r'[A-Za-z0-9]{1,32}\Z')
-REPLY_RE = re.compile(rb'!A04 ([A-Za-z0-9]{1,32}) (OK|ERR)(?: ([\x20-\x7e]*))?\r?\n\Z')
+REPLY_RE = re.compile(rb'!A04 ([A-Za-z0-9]{1,32}) (OK|ERR)(?: ([\x20-\x7e]*))?\r*\n\Z')
 NEXT_RE = re.compile(r'(?:(?:next|offset)[= ])?([0-9]+)\Z')
 COMMANDS = {'status', 'boot-begin', 'boot-data', 'boot-commit', 'boot-abort', 'reboot', 'exec'}
 
@@ -219,6 +219,16 @@ def write_all(fd, data):
         view = view[count:]
 
 
+def write_paced(fd, data, *, burst=1, interval=0.005, sleep=time.sleep):
+    """The board currently polls its small UART RX FIFO every16ms."""
+    if burst < 1 or interval < 0:
+        raise ValueError('invalid UART pacing')
+    for at in range(0, len(data), burst):
+        write_all(fd, data[at:at+burst])
+        if interval:
+            sleep(interval)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--uart', required=True, help='UART device (write-only; no termios changes)')
@@ -236,8 +246,10 @@ def main(argv=None):
     upload = sub.add_parser('upload')
     upload.add_argument('image', type=Path)
     upload.add_argument('--reboot', action='store_true', help='reboot only after successful commit ACK')
+    parser.add_argument('--tx-burst',type=int,default=1,help='UART bytes per paced write')
+    parser.add_argument('--tx-interval',type=float,default=0.005,help='seconds between UART writes')
     options = parser.parse_args(argv)
-    if options.timeout <= 0 or options.retries < 0:
+    if options.timeout <= 0 or options.retries < 0 or options.tx_burst < 1 or options.tx_interval < 0:
         parser.error('timeout must be positive; retries must be nonnegative')
     if options.command == 'exec':
         if not options.path.startswith('/'):
@@ -257,7 +269,7 @@ def main(argv=None):
         raw = RawLog(options.raw_log, options.baseline)
         with options.log.open('a', encoding='utf-8') as log:
             fd = os.open(options.uart, os.O_WRONLY | os.O_NOCTTY)
-            client = Client(lambda data: write_all(fd, data), raw.read,
+            client = Client(lambda data: write_paced(fd, data, burst=options.tx_burst, interval=options.tx_interval), raw.read,
                             timeout=options.timeout, retries=options.retries, log=log)
             if options.command == 'upload':
                 result = client.upload(options.image, reboot=options.reboot)
