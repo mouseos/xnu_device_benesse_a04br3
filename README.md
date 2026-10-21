@@ -613,3 +613,17 @@ A `FW ready=1 ABI/DDK/BVNC verified` UART message establishes firmware startup,
 not iOS GPU command submission or rendering acceleration. The native BSD Wi-Fi
 adapter is a separate source component; it publishes readiness only from a real
 backend and is not automatically connected by firmware packaging.
+
+### Prebuilt-image recipients and per-device WLAN data
+
+Distribution targets prebuilt images. Recipients flash the image; they do not
+extract a backup, supply a WIFI calibration file, edit a MAC address, or rebuild.
+The kernel discovers the current device's `nvram` partition from the validated
+GPT at boot. Its read-only runtime loader follows the original bad-block bitmap,
+AllMap and AllFile records and validates both checksums before accepting WIFI512.
+The original MAC/calibration stay on the device. No per-device calibration is
+embedded in the source or the distributed image. The generic firmware input
+options above are for image builders, not additional recipient setup steps.
+A missing or invalid original NVRAM record is a WLAN error; no generated MAC,
+calibration, scan result, or connected state substitutes for it. Network backend
+initialization is deferred until the BSD networking stack is available.
