@@ -22,6 +22,7 @@ import sys
 import threading
 import time
 import uuid
+import zlib
 
 BLOCK_BYTES = 384
 ROOT = Path(__file__).resolve().parents[3]
@@ -31,7 +32,10 @@ REPLY_RE = re.compile(rb'!A04 ([A-Za-z0-9]{1,32}) (OK|ERR)(?: ([\x20-\x7e]*))?\r
 NEXT_RE = re.compile(r'(?:(?:next|offset)[= ])?([0-9]+)\Z')
 STATUS_RE = re.compile(r'version=(0|[1-9][0-9]{0,19}) flags=(0|[1-9][0-9]{0,19}) partition=(0|[1-9][0-9]{0,19}) staged=(0|[1-9][0-9]{0,19}) image=(0|[1-9][0-9]{0,19})\Z')
 DATA_RECONCILE_RETRIES = 2
-COMMANDS = {'status', 'sample', 'boot-begin', 'boot-data', 'boot-commit', 'boot-abort', 'reboot', 'exec'}
+GZIP_ACK_RE = re.compile(r'offset=(0|[1-9][0-9]{0,19}) raw=(0|[1-9][0-9]{0,19})\Z')
+GZIP_RAW_MAX = 128 * 1024 * 1024
+GZIP_INPUT_MAX = GZIP_RAW_MAX + 1024 * 1024
+COMMANDS = {'status', 'sample', 'boot-begin', 'boot-data', 'boot-commit', 'boot-abort', 'reboot', 'exec', 'boot-zbegin', 'boot-zdata', 'boot-zfinish'}
 
 
 class ProtocolError(RuntimeError):
@@ -113,7 +117,7 @@ def request_line(request_id, command, args):
     for arg in args:
         if not arg or any(ord(c) < 33 or ord(c) > 126 or c in '\"\'\\' for c in arg):
             raise ValueError('arguments must be unquoted printable ASCII tokens')
-    if command in {'status', 'sample', 'boot-commit', 'boot-abort', 'reboot'} and args:
+    if command in {'status', 'sample', 'boot-commit', 'boot-abort', 'reboot', 'boot-zfinish'} and args:
         raise ValueError('command takes no arguments')
     if command == 'exec' and (not args or not args[0].startswith('/')):
         raise ValueError('exec requires an absolute path')
@@ -129,6 +133,22 @@ def request_line(request_id, command, args):
             raise ValueError('invalid BASE64') from error
         if not 1 <= len(decoded) <= BLOCK_BYTES:
             raise ValueError('boot-data decoded size must be 1..384')
+    if command == 'boot-zbegin':
+        if (len(args) != 3 or not re.fullmatch(r'[0-9]+', args[0]) or
+                not re.fullmatch(r'[0-9]+', args[1]) or
+                not 18 <= int(args[0]) <= GZIP_INPUT_MAX or
+                not 6144 <= int(args[1]) <= GZIP_RAW_MAX or int(args[1]) % 2048 or
+                not re.fullmatch(r'[a-fA-F0-9]{64}', args[2])):
+            raise ValueError('boot-zbegin requires bounded compressed/raw lengths and raw SHA256')
+    if command == 'boot-zdata':
+        if len(args) != 3 or not re.fullmatch(r'[0-9]+', args[0]) or not re.fullmatch(r'[0-9a-f]{8}', args[1]):
+            raise ValueError('boot-zdata requires offset, CRC32 hex and BASE64')
+        try:
+            decoded = base64.b64decode(args[2], validate=True)
+        except ValueError as error:
+            raise ValueError('invalid BASE64') from error
+        if not 1 <= len(decoded) <= BLOCK_BYTES or zlib.crc32(decoded) != int(args[1], 16):
+            raise ValueError('boot-zdata size/CRC mismatch')
     return ('@A04 ' + request_id + ' ' + ' '.join([command, *args]) + '\n').encode('ascii')
 
 
@@ -234,7 +254,11 @@ class Client:
                 raise ProtocolError('boot-data ACK does not match next byte offset')
             return
 
-    def upload(self, path, *, reboot=False):
+    def upload(self, path, *, reboot=False, compression='raw'):
+        if compression == 'gzip':
+            return self.upload_gzip(path, reboot=reboot)
+        if compression != 'raw':
+            raise ValueError('unsupported upload compression')
         with open(path, 'rb') as source:
             digest = hashlib.sha256()
             total = 0
@@ -263,6 +287,65 @@ class Client:
             if offset != total or sent.hexdigest() != expected:
                 raise ProtocolError('source image changed; upload not committed')
             detail = self.request('boot-commit')
+            if reboot:
+                self.request('reboot')
+            return detail
+
+    def upload_gzip(self, path, *, reboot=False):
+        """Explicit optional gzip; no fallback, raw-offset guessing or new-ID replay.
+
+        Frozen native status exposes raw bytes only, not inflater/compressed
+        progress. Raw progress cannot disambiguate acceptance of a compressed
+        chunk, so exhausted cached ACK retries/ERR22 always stop before COMMIT.
+        """
+        import gzip
+        import tempfile
+        with open(path, 'rb') as source, tempfile.TemporaryFile() as packed:
+            initial = os.fstat(source.fileno())
+            if not 6144 <= initial.st_size <= GZIP_RAW_MAX or initial.st_size % 2048:
+                raise ValueError('gzip upload requires bounded aligned boot image')
+            digest = hashlib.sha256()
+            total = 0
+            with gzip.GzipFile(filename='', mode='wb', fileobj=packed, mtime=0) as encoder:
+                while True:
+                    block = source.read(1024 * 1024)
+                    if not block:
+                        break
+                    total += len(block)
+                    if total > initial.st_size:
+                        raise ProtocolError('source image grew before gzip BEGIN')
+                    digest.update(block)
+                    encoder.write(block)
+            final = os.fstat(source.fileno())
+            if (total != initial.st_size or
+                    (initial.st_size, initial.st_mtime_ns, initial.st_ctime_ns) !=
+                    (final.st_size, final.st_mtime_ns, final.st_ctime_ns)):
+                raise ProtocolError('source image changed before gzip BEGIN')
+            compressed = packed.tell()
+            if not 18 <= compressed <= GZIP_INPUT_MAX:
+                raise ValueError('compressed image exceeds native bounds')
+            packed.seek(0)
+            detail = self.request('boot-zbegin', str(compressed), str(total), digest.hexdigest())
+            if detail != 'offset=0 raw=0':
+                raise ProtocolError('gzip BEGIN ACK mismatch; upload not committed')
+            offset = raw_staged = 0
+            while True:
+                block = packed.read(BLOCK_BYTES)
+                if not block:
+                    break
+                next_offset = offset + len(block)
+                detail = self.request('boot-zdata', str(offset), f'{zlib.crc32(block):08x}',
+                                      base64.b64encode(block).decode('ascii'))
+                match = GZIP_ACK_RE.fullmatch(detail)
+                if not match or int(match[1]) != next_offset or not raw_staged <= int(match[2]) <= total:
+                    raise ProtocolError('gzip data ACK mismatch; upload not committed')
+                raw_staged, offset = int(match[2]), next_offset
+            if offset != compressed:
+                raise ProtocolError('compressed length changed; upload not committed')
+            detail = self.request('boot-zfinish')
+            if detail != f'offset={compressed} raw={total}':
+                raise ProtocolError('gzip FINISH ACK mismatch; upload not committed')
+            detail = self.request('boot-commit')  # Actual kernel SHA/header/GPT/readback gate.
             if reboot:
                 self.request('reboot')
             return detail
@@ -352,6 +435,7 @@ def main(argv=None):
     execute.add_argument('args', nargs=argparse.REMAINDER)
     upload = sub.add_parser('upload')
     upload.add_argument('image', type=Path)
+    upload.add_argument('--gzip', action='store_true', help='explicit optional native gzip; no automatic fallback')
     upload.add_argument('--reboot', action='store_true', help='reboot only after successful commit ACK')
     parser.add_argument('--tx-burst',type=int,default=1,help='UART bytes per paced write')
     parser.add_argument('--tx-interval',type=float,default=0.005,help='seconds between UART writes')
@@ -381,7 +465,7 @@ def main(argv=None):
                             write_deadline=lambda data, deadline: write_paced(fd, data,
                                 burst=options.tx_burst, interval=options.tx_interval, deadline=deadline))
             if options.command == 'upload':
-                result = client.upload(options.image, reboot=options.reboot)
+                result = client.upload(options.image, reboot=options.reboot, compression='gzip' if options.gzip else 'raw')
             elif options.command == 'exec':
                 result = client.request('exec', options.path, *options.args)
             else:
