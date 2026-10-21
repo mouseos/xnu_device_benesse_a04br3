@@ -11,9 +11,11 @@ import argparse
 import base64
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import re
+import select
 import stat
 import sys
 import threading
@@ -122,12 +124,13 @@ def request_line(request_id, command, args):
 
 class Client:
     def __init__(self, write, read, *, timeout=5.0, retries=2, log=None,
-                 clock=time.monotonic, sleep=time.sleep):
-        if timeout <= 0 or retries < 0:
+                 clock=time.monotonic, sleep=time.sleep, write_deadline=None):
+        if not math.isfinite(timeout) or timeout <= 0 or retries < 0:
             raise ValueError('invalid timeout/retries')
         self.write, self.read = write, read
         self.timeout, self.retries, self.log = timeout, retries, log
         self.clock, self.sleep = clock, sleep
+        self.write_deadline = write_deadline
         self.parser = ReplyParser()
         self.lock = threading.Lock()
         # Reject caller reuse, which could trigger a cached response to a new command.
@@ -151,8 +154,18 @@ class Client:
             retries = 0 if command == 'reboot' else self.retries
             for attempt in range(retries + 1):
                 self.event(event='send', id=request_id, command=command, attempt=attempt)
-                self.write(line)
+                # One attempt budget covers TX pacing/backpressure AND ACK.
                 deadline = self.clock() + self.timeout
+                try:
+                    if self.write_deadline is None:
+                        self.write(line)  # Injected transports must bound their own writes.
+                    else:
+                        self.write_deadline(line, deadline)
+                except (OSError, ProtocolError):
+                    # A partially transmitted canonical line must never be
+                    # retried/concatenated automatically after a TX failure.
+                    self.event(event='tx-failed', id=request_id, command=command)
+                    raise
                 while True:
                     for reply_id, status, detail in self.parser.feed(self.read()):
                         if reply_id != request_id:
@@ -207,26 +220,51 @@ class Client:
             return detail
 
 
-def write_all(fd, data):
+def _remaining(deadline, clock):
+    remaining = deadline - clock()
+    if remaining <= 0:
+        raise AckTimeout('UART TX deadline expired; request was not retried')
+    return remaining
+
+
+def write_all(fd, data, *, deadline=None, clock=time.monotonic):
     view = memoryview(data)
     while view:
+        if deadline is not None:
+            _remaining(deadline, clock)
         try:
             count = os.write(fd, view)
         except InterruptedError:
+            continue
+        except BlockingIOError:
+            if deadline is None:
+                raise
+            # CLI owns a nonblocking, write-only descriptor. Waiting for TX
+            # readiness neither reads the UART nor changes shared termios.
+            try:
+                select.select([], [fd], [], min(0.05, _remaining(deadline, clock)))
+            except InterruptedError:
+                pass
             continue
         if count <= 0:
             raise ProtocolError('UART write made no progress')
         view = view[count:]
 
 
-def write_paced(fd, data, *, burst=1, interval=0.005, sleep=time.sleep):
+def write_paced(fd, data, *, burst=1, interval=0.005, sleep=time.sleep,
+                deadline=None, clock=time.monotonic):
     """The board currently polls its small UART RX FIFO every16ms."""
-    if burst < 1 or interval < 0:
+    if burst < 1 or not math.isfinite(interval) or interval < 0:
         raise ValueError('invalid UART pacing')
     for at in range(0, len(data), burst):
-        write_all(fd, data[at:at+burst])
+        if deadline is None:
+            write_all(fd, data[at:at+burst])
+        else:
+            write_all(fd, data[at:at+burst], deadline=deadline, clock=clock)
         if interval:
-            sleep(interval)
+            sleep(interval if deadline is None else min(interval, _remaining(deadline, clock)))
+        if deadline is not None:
+            _remaining(deadline, clock)
 
 
 def main(argv=None):
@@ -249,7 +287,7 @@ def main(argv=None):
     parser.add_argument('--tx-burst',type=int,default=1,help='UART bytes per paced write')
     parser.add_argument('--tx-interval',type=float,default=0.005,help='seconds between UART writes')
     options = parser.parse_args(argv)
-    if options.timeout <= 0 or options.retries < 0 or options.tx_burst < 1 or options.tx_interval < 0:
+    if not math.isfinite(options.timeout) or options.timeout <= 0 or options.retries < 0 or options.tx_burst < 1 or not math.isfinite(options.tx_interval) or options.tx_interval < 0:
         parser.error('timeout must be positive; retries must be nonnegative')
     if options.command == 'exec':
         if not options.path.startswith('/'):
@@ -268,9 +306,11 @@ def main(argv=None):
         # Baseline is established before opening/writing the UART.
         raw = RawLog(options.raw_log, options.baseline)
         with options.log.open('a', encoding='utf-8') as log:
-            fd = os.open(options.uart, os.O_WRONLY | os.O_NOCTTY)
+            fd = os.open(options.uart, os.O_WRONLY | os.O_NOCTTY | os.O_NONBLOCK)
             client = Client(lambda data: write_paced(fd, data, burst=options.tx_burst, interval=options.tx_interval), raw.read,
-                            timeout=options.timeout, retries=options.retries, log=log)
+                            timeout=options.timeout, retries=options.retries, log=log,
+                            write_deadline=lambda data, deadline: write_paced(fd, data,
+                                burst=options.tx_burst, interval=options.tx_interval, deadline=deadline))
             if options.command == 'upload':
                 result = client.upload(options.image, reboot=options.reboot)
             elif options.command == 'exec':

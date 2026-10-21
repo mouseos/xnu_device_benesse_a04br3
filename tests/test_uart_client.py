@@ -240,7 +240,7 @@ class UARTClientTests(unittest.TestCase):
                 flags_seen.append(flags)
             return real_open(path, flags, *args, **kwargs)
         pending = bytearray()
-        def write_fd(fd, line):
+        def write_fd(fd, line, **kwargs):
             pending.extend(line)
             if not pending.endswith(b'\n'):
                 return
@@ -254,7 +254,7 @@ class UARTClientTests(unittest.TestCase):
             for command in ('status', 'sample'):
                 self.assertEqual(uart.main(['--uart', str(uart_path), '--raw-log', str(sim.raw_path),
                                             '--log', str(log), command]), 0)
-        self.assertEqual(flags_seen, [os.O_WRONLY | os.O_NOCTTY] * 2)
+        self.assertEqual(flags_seen, [os.O_WRONLY | os.O_NOCTTY | os.O_NONBLOCK] * 2)
         self.assertEqual(uart_path.read_bytes(), b'')
         self.assertTrue(log.read_text())
 

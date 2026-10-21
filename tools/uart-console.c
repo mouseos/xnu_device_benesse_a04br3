@@ -121,7 +121,7 @@ static void console(void){
    if(recoveries>60)_exit(122);sleep(1);
    int replacement=open("/dev/console",2);if(replacement<0)continue;
    if(configure_uart(replacement)){close(replacement);_exit(124);}(void)ioctl(replacement,0x20007461UL,0);int group=getpid();(void)ioctl(replacement,0x80047476UL,&group);
-   for(int j=0;j<3;j++)if(dup2(replacement,j)<0)_exit(121);if(replacement>2)close(replacement);continue;}if(c=='\r'||c=='\n'){if(!overflow&&at){line[at]=0;reply[0]=0;int restart=command(line,reply);if(reply[0])say(reply);if(restart){sync();if(reboot(0)<0)say("\nA04BR3_CONSOLE reboot failed\n");}}at=0;overflow=0;}else if(!overflow){if(at+1<sizeof(line))line[at++]=c;else overflow=1;}}
+   for(int j=0;j<3;j++)if(dup2(replacement,j)<0)_exit(121);if(replacement>2)close(replacement);continue;}if(c=='\r'||c=='\n'){if(!overflow&&at){line[at]=0;reply[0]=0;int restart=command(line,reply);int acknowledged=reply[0] && say(reply)==0;if(restart && acknowledged){sync();if(reboot(0)<0)say("\nA04BR3_CONSOLE reboot failed\n");}}at=0;overflow=0;}else if(!overflow){if(at+1<sizeof(line))line[at++]=c;else overflow=1;}}
 }
 int main(int argc,char **argv){
  (void)argc;(void)argv;

@@ -21,11 +21,25 @@ python3 tools/uart_client.py --uart /dev/ttyUSB0 --raw-log /path/to/uart.log sta
 python3 tools/uart_client.py --uart /dev/ttyUSB0 --raw-log /path/to/uart.log --timeout 60 upload boot.img --reboot
 ```
 
+The host opens UART write-only and nonblocking. Each request attempt's timeout
+covers paced transmission, TX backpressure and ACK waiting together. Default
+pacing remains one byte every 5ms. A TX error/deadline ends the operation without
+retrying a possibly partial canonical line; upload cannot proceed to later
+COMMIT/reboot commands. A timeout can occur after the final newline reached the
+device, so it does not prove that the current command did not execute. An ACK timeout after a fully transmitted line may retry the same request
+id, using the console's cached reply. The host does not inject ABORT/newline or
+reboot after a partial TX failure; inspect/reset the protocol state before a
+new upload. Python callers with custom `Client(write, ...)` transports must
+bound their own writes or provide `write_deadline(data, absolute_deadline)`.
+No faster untested profile is selected automatically.
+
 Upload stages the complete image in memory. `/dev/a04boot` exposes INFO,
 BEGIN, sequential writes, COMMIT and ABORT to root only. COMMIT checks the
 complete transfer, Android/MTK framing and the CRC-verified current GPT boot
 range, then writes only boot, flushes and verifies its readback. Raw disk
-writes remain disabled. Upload does not reboot without `--reboot`. No image
+writes remain disabled. Upload does not reboot without `--reboot`. The console suppresses an explicit
+reboot if its complete ACK cannot be written; ACK transmission does not prove
+host receipt or hardware reboot. No image
 is written merely by booting or starting the console.
 
 Deployment first requires installing the console-capable image through the
