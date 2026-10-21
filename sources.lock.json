@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "88ad75df02d06b3b6a86ae32fcfe0b5e61e6e2dd",
-    "role": "Initial native Personal/link and memory-maintenance ABI, framebuffer/keyboard observation, plus source-defined Rogue programs and optional isolated CPU resource trial. No GPU pixel/acceleration or physical Wi-Fi success claim. Independent bounded assetsd crash observation; cause not yet determined."
+    "commit": "7d3b9ca1b5a3f2ed38e6deb8f778e72712458e91",
+    "role": "Native Personal/link publication with admin-down completion rejection; ACK-safe console, framebuffer/keyboard observation, bounded assetsd crashes and optional cold GPU resource trial. Radio, pixels, keyboard presentation and boot overwrite remain unverified."
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
