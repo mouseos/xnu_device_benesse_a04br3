@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "de64dea474fa94dbeb6ca4f7af36149b792ad557",
-    "role": "Native open association/current peer plus firmware-backed bounded disconnect, explicit snapshots and existing console/update/capture/board compatibility. Firmware and UI execution remain unverified."
+    "commit": "9ac070452dd3745fdb704b81beaabc5dbc181768",
+    "role": "Opt-in root finite Home/tap observation helper, native actual peer identity/open WLAN lifecycle, explicit snapshots and embedded capture/console/updater. Personal crypto source present but handshake runtime integration pending."
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
