@@ -6,5 +6,5 @@ current-version: 1319.0.0
 compatibility-version: 1.0.0
 exports:
   - archs: [ arm64 ]
-    symbols: [ _open, _close, _dup2, _getpid, _setsid, _fork, _execv, _waitpid, _ioctl, _reboot, _read, _write, __exit, _sync, _sleep, _tcgetattr, _tcsetattr, _strlen, _strcmp, _memcmp, _snprintf, _memcpy, _memset, ___error ]
+    symbols: [ _open, _close, _dup2, _getpid, _setsid, _fork, _execv, _waitpid, _ioctl, _reboot, _read, _write, __exit, _sync, _sleep, _tcgetattr, _tcsetattr, _strlen, _strcmp, _memcmp, _snprintf, _memcpy, _memset, ___error, _dlopen, _dlsym, _dlclose ]
 ...

@@ -1,0 +1,16 @@
+{
+  "license": "BSD-2-Clause-Patent",
+  "implementation": "Independent source-built optional gzip streaming UART transport",
+  "api_reference": "https://zlib.net/manual.html",
+  "reference_checked": "2026-10-22",
+  "credits": "Jean-loup Gailly and Mark Adler, public zlib ABI/documentation; no library implementation copied",
+  "production_files": [
+    "tools/uart-console.c",
+    "tools/uart-libSystem.tbd"
+  ],
+  "build": "tools/build-uart-console.sh unchanged; SDK zlib.h/dlfcn.h types, no -lz",
+  "new_required_helpers": [],
+  "abi_checks": "LP64 z_stream112, total_in16,total_out40,zalloc64,adler96; init/inflate/end/crc function types from public SDK declarations",
+  "test": "tests/test_uart_console_gzip.py ASan/UBSan actual host libz + mocked boot staging; optional A04_GZIP_TEST_IMAGE exercises real boot bytes offline",
+  "unverified": "Parent actual SDK compile / on-device optional libz and transport not yet tested"
+}
