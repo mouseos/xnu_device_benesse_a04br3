@@ -29,16 +29,16 @@ class RebootACK(unittest.TestCase):
 #include <string.h>
 #include <setjmp.h>
 static jmp_buf done;
-static unsigned mode,at,reboots,ackwrites;
+static unsigned mode,at,reboots,ackwrites,drains;
 static int ack_started;
 static char output[4096];static size_t used;
 int *__error(void){return &errno;}
 void mockexit(int code){(void)code;assert(0);}
-int mockopen(const char *name,int flags,...){assert(!strcmp(name,"/dev/console")&&flags==2);return 5;}
+int mockopen(const char *name,int flags,...){assert(!strcmp(name,mode>=4?"/dev/a04usb":"/dev/console")&&flags==2);return 5;}
 int mockclose(int fd){assert(fd==5);return 0;}
 int mocksetsid(void){return 1;}
 int mockdup2(int fd,int target){assert(fd==5);return target;}
-int mockioctl(int fd,unsigned long cmd,...){(void)fd;(void)cmd;return 0;}
+int mockioctl(int fd,unsigned long cmd,...){(void)fd;if(cmd==0x20005570UL){drains++;if(mode==5){errno=EIO;return -1;}}return 0;}
 void mocksync(void){}
 int mockreboot(int flags){assert(!flags);reboots++;return 0;}
 unsigned int mocksleep(unsigned int n){(void)n;assert(0);return 0;}
@@ -61,12 +61,15 @@ ssize_t mockread(int fd,void *out,size_t bytes){
 }
 '''.replace('SOURCE',str(TOOLS/'uart-console.c'))+console+r'''
 int main(void){
- for(mode=0;mode<4;mode++){
+ for(mode=0;mode<6;mode++){
+  console_usb=mode>=4;drains=0;
   at=reboots=ackwrites=used=0;ack_started=0;memset(output,0,sizeof(output));
   memset(last_line,0,sizeof(last_line));memset(last_reply,0,sizeof(last_reply));memset(last_id,0,sizeof(last_id));
   if(!setjmp(done))console();
-  assert(ackwrites && reboots==(mode==0?1u:0u));
+  assert(ackwrites && reboots==((mode==0||mode==4)?1u:0u));
   if(!mode)assert(strstr(output,"!A04 check OK restarting\n"));
+  assert(drains==(mode>=4?1u:0u));
+  if(mode==5)assert(strstr(output,"reboot blocked: USB ACK not drained"));
  }
  return 0;
 }

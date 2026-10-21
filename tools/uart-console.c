@@ -156,7 +156,7 @@ static int shell_command(int n,char **v){
  if(n==2 && !strcmp(v[0],"cd"))return chdir(v[1])<0?ERRNO:0;
  if((n==1||n==2) && !strcmp(v[0],"ls")){
   DIR *dir=opendir(n==2?v[1]:".");if(!dir)return ERRNO;int error=0;unsigned count=0;
-  for(;;){struct dirent *entry=readdir(dir);if(!entry)break;if(++count>4096){error=27;break;}if(say(entry->d_name)||say("\n")){error=5;break;}}
+  for(;;){*__error()=0;struct dirent *entry=readdir(dir);if(!entry){if(ERRNO)error=ERRNO;break;}if(++count>4096){error=27;break;}if(say(entry->d_name)||say("\n")){error=5;break;}}
   if(closedir(dir)<0&&!error)error=ERRNO;return error;
  }
  if(n==2 && !strcmp(v[0],"cat")){
@@ -279,7 +279,7 @@ static void console(void){
    if(recoveries>60)_exit(122);sleep(1);
    int replacement=open("/dev/console",2);if(replacement<0)continue;
    if(configure_uart(replacement)){close(replacement);_exit(124);}(void)ioctl(replacement,0x20007461UL,0);int group=getpid();(void)ioctl(replacement,0x80047476UL,&group);
-   for(int j=0;j<3;j++)if(dup2(replacement,j)<0)_exit(121);if(replacement>2)close(replacement);continue;}if(c=='\r'||c=='\n'){if(!overflow&&at){line[at]=0;reply[0]=0;int restart=command(line,reply);int acknowledged=reply[0] && say(reply)==0;if(restart && acknowledged){sync();if(reboot(0)<0)say("\nA04BR3_CONSOLE reboot failed\n");}}at=0;overflow=0;}else if(!overflow){if(at+1<sizeof(line))line[at++]=c;else overflow=1;}}
+   for(int j=0;j<3;j++)if(dup2(replacement,j)<0)_exit(121);if(replacement>2)close(replacement);continue;}if(c=='\r'||c=='\n'){if(!overflow&&at){line[at]=0;reply[0]=0;int restart=command(line,reply);int acknowledged=reply[0] && say(reply)==0;if(restart && acknowledged){if(console_usb && ioctl(0,0x20005570UL,0)<0)say("\nA04BR3_USBCONSOLE reboot blocked: USB ACK not drained\n");else {sync();if(reboot(0)<0)say("\nA04BR3_CONSOLE reboot failed\n");}}}at=0;overflow=0;}else if(!overflow){if(at+1<sizeof(line))line[at++]=c;else overflow=1;}}
 }
 static void usb_console(void){console_usb=1;console();}
 int main(int argc,char **argv){
