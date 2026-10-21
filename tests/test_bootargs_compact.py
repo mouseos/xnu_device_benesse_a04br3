@@ -41,7 +41,7 @@ class BootArguments(unittest.TestCase):
         command = base + ' filler=' + 'x' * (620 - len(base) - 8)
         self.assertEqual(len(command), 620)
         compact = compact_for_handoff(command)
-        self.assertEqual(len(compact), 604)
+        self.assertEqual(len(compact), len(command) - 2 * len(NUMERIC_ONE_KEYS))
         self.assertIn(ids, compact)
         self.assertIn('a04br3.display_probe=1 unknown=1 cpus=4', compact)
         for key in sorted(NUMERIC_ONE_KEYS):
