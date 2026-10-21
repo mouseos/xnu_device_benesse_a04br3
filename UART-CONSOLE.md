@@ -95,3 +95,22 @@ native logs are tolerated; incomplete or corrupted frames are rejected.
 The current surface lock does not freeze presentation: captures are best effort.
 Use the tablet camera only when framebuffer capture is unavailable. A successful
 host test or SDK build is not proof of a screenshot from the device.
+
+The optional source-built `/usr/appleinternal/sbin/a04-ui-test` provides explicit
+root-only finite Home/tap pairs through private client type 0xa04b, enabled
+only by `a04br3.console=1`. It never runs automatically and exposes no power,
+reset, held-key or raw-memory operation. Physical key/touch activity, an active
+request, allocation failure or unavailable provider can reject a request.
+
+```
+python3 tools/uart_client.py --uart /dev/ttyUSB0 --raw-log /path/to/uart.log exec /usr/appleinternal/sbin/a04-ui-test home
+python3 tools/uart_client.py --uart /dev/ttyUSB0 --raw-log /path/to/uart.log exec /usr/appleinternal/sbin/a04-ui-test tap 400 640
+```
+
+Coordinates refer to the physical 800x1280 panel, independently of UI rotation.
+Both complete events are allocated before dispatch, with no held synthetic
+state or userland roundtrip between down/up. Pair dispatch is immediate and
+queue delivery remains best effort, with no hard scheduler deadline guarantee.
+A successful return requires a new framebuffer observation before claiming
+that Setup or any control reacted. Do not blindly replay an ambiguous action.
+The normal HID identity and default native user-client type are preserved.
