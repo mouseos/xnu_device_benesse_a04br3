@@ -35,7 +35,7 @@ DATA_RECONCILE_RETRIES = 2
 GZIP_ACK_RE = re.compile(r'offset=(0|[1-9][0-9]{0,19}) raw=(0|[1-9][0-9]{0,19})\Z')
 GZIP_RAW_MAX = 128 * 1024 * 1024
 GZIP_INPUT_MAX = GZIP_RAW_MAX + 1024 * 1024
-COMMANDS = {'status', 'sample', 'boot-begin', 'boot-data', 'boot-commit', 'boot-abort', 'reboot', 'exec', 'boot-zbegin', 'boot-zdata', 'boot-zfinish'}
+COMMANDS = {'status', 'sample', 'boot-begin', 'boot-data', 'boot-commit', 'boot-abort', 'reboot', 'exec', 'boot-zbegin', 'boot-zdata', 'boot-zfinish', 'shell'}
 
 
 class ProtocolError(RuntimeError):
@@ -133,6 +133,16 @@ def request_line(request_id, command, args):
             raise ValueError('invalid BASE64') from error
         if not 1 <= len(decoded) <= BLOCK_BYTES:
             raise ValueError('boot-data decoded size must be 1..384')
+    if command == 'shell':
+        if not args or args[0] not in ('help', 'pwd', 'cd', 'ls', 'cat'):
+            raise ValueError('shell requires native help/pwd/cd/ls/cat')
+        count = len(args)
+        if ((args[0] in ('help', 'pwd') and count != 1) or
+                (args[0] in ('cd', 'cat') and count != 2) or
+                (args[0] == 'ls' and count not in (1, 2))):
+            raise ValueError('invalid native shell arguments')
+        if len(' '.join(args).encode('ascii')) > 950:
+            raise ValueError('native shell arguments too long')
     if command == 'boot-zbegin':
         if (len(args) != 3 or not re.fullmatch(r'[0-9]+', args[0]) or
                 not re.fullmatch(r'[0-9]+', args[1]) or
@@ -287,6 +297,8 @@ class Client:
             if offset != total or sent.hexdigest() != expected:
                 raise ProtocolError('source image changed; upload not committed')
             detail = self.request('boot-commit')
+            if detail != 'boot-write-verified':
+                raise ProtocolError('COMMIT ACK is not boot-write-verified; reboot forbidden')
             if reboot:
                 self.request('reboot')
             return detail
@@ -345,7 +357,9 @@ class Client:
             detail = self.request('boot-zfinish')
             if detail != f'offset={compressed} raw={total}':
                 raise ProtocolError('gzip FINISH ACK mismatch; upload not committed')
-            detail = self.request('boot-commit')  # Actual kernel SHA/header/GPT/readback gate.
+            detail = self.request('boot-commit')
+            if detail != 'boot-write-verified':
+                raise ProtocolError('COMMIT ACK is not boot-write-verified; reboot forbidden')
             if reboot:
                 self.request('reboot')
             return detail

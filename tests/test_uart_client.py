@@ -65,7 +65,7 @@ class Sim:
                 if self.commit_error:
                     status, detail = 'ERR', '5 verification-failed'
                 else:
-                    detail = 'verified-flushed'
+                    detail = 'boot-write-verified'
             reply = f'!A04 {rid} {status} {detail}\r\n'.encode()
             self.cache[rid] = (line, reply)
             if self.drop and (self.drop_command is None or command == self.drop_command):
@@ -111,7 +111,7 @@ class UARTClientTests(unittest.TestCase):
         image = directory / 'boot.img'
         content = bytes(range(256)) * 4
         image.write_bytes(content)
-        self.assertEqual(sim.client.upload(image), 'verified-flushed')
+        self.assertEqual(sim.client.upload(image), 'boot-write-verified')
         self.assertEqual(sim.data, content)
         self.assertEqual(sim.sha, hashlib.sha256(content).hexdigest())
         self.assertEqual(sim.commits, 1)
