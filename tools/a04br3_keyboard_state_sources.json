@@ -1,0 +1,547 @@
+{
+  "purpose": "Passive source-built reader; observations select a causal implementation repair. Not a software keyboard fix.",
+  "target": {
+    "artifact": "UIKitCore, iOS16.7.16/20H392",
+    "uuid": "1242978a2c2c37818d6c9777edce2804",
+    "original_sha256": "c64c200c248fe0646fd12e708e202814cc52e239f2ff58d69a570faeb576961a",
+    "unslid_header": "0x188d83000"
+  },
+  "evidence": {
+    "UIApplication_global": "ev_144e2db5ad559c6666eb9e5d65daa849b051f306944f4c0fe320f61233ba1574",
+    "activeImpl_global": "ev_74db756a2412d0ae18399b619ea21f5dc2b5b5bf4def748047d7a6538633d21c (REA original getter assembly)",
+    "remoteKeyboards_global": "ev_4b0e6fbf9ec67ca23bbc9299c408dc9ae4f5a14a48b3990e30e168175553fb97",
+    "hardwareAttached_byte": "ev_fbf38b2a52cc5f84fc65ff2d88b7bec7fe91d0880a715ed22ddfeb69c902fdf8",
+    "attached_object": "ev_7547d5f9dcd681937924a3b5ebb88370cde5ae436126f768c222bbdec7f31ef7",
+    "inputUIOOP_cache": "ev_f3cb834541c0674af39ec73c065229a09fff2d63631ca97096337c5039e0487e",
+    "remote_connection_initial_suppression": "ev_643a99df50f7b0c733124f4ca288408202fdf9527afb66b150eaf037d75cf977"
+  },
+  "remote_ivars": [
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._activePIDs",
+      "metadata_address": "0x1dce16df8",
+      "offset": 40
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._assertionController",
+      "metadata_address": "0x1dce16e58",
+      "offset": 176
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._backupState",
+      "metadata_address": "0x1dce16e8c",
+      "offset": 224
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._connection",
+      "metadata_address": "0x1dce16e84",
+      "offset": 208
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._currentKeyboard",
+      "metadata_address": "0x1dce16e68",
+      "offset": 187
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._currentState",
+      "metadata_address": "0x1dce16e88",
+      "offset": 216
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._deactivatedByControlCenter",
+      "metadata_address": "0x1dce16e10",
+      "offset": 73
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._deactivatedBySystemAnimation",
+      "metadata_address": "0x1dce16e14",
+      "offset": 74
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._didSignalKeyboardChangedForCurrentKeyboard",
+      "metadata_address": "0x1dce16e6c",
+      "offset": 188
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._disablingKeyboard",
+      "metadata_address": "0x1dce16e40",
+      "offset": 128
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._enableMultiscreenHack",
+      "metadata_address": "0x1dce16e64",
+      "offset": 186
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._enqueuedWillEnterForegroundActions",
+      "metadata_address": "0x1dce16e1c",
+      "offset": 76
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._eventObserver",
+      "metadata_address": "0x1dce16e4c",
+      "offset": 152
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._expectedSuppression",
+      "metadata_address": "0x1dce16e24",
+      "offset": 88
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._expectingInitialState",
+      "metadata_address": "0x1dce16e00",
+      "offset": 56
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._externalSuppression",
+      "metadata_address": "0x1dce16e28",
+      "offset": 92
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._focusedSceneIdentityStringOrIdentifier",
+      "metadata_address": "0x1dce16e08",
+      "offset": 64
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._hadFocusBeforeOverlay",
+      "metadata_address": "0x1dce16e0c",
+      "offset": 72
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._handlingRemoteEvent",
+      "metadata_address": "0x1dce16e74",
+      "offset": 190
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._handlingViewServiceEvent",
+      "metadata_address": "0x1dce16e78",
+      "offset": 191
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._hostedCount",
+      "metadata_address": "0x1dce16e04",
+      "offset": 60
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._iavHeight",
+      "metadata_address": "0x1dce16e44",
+      "offset": 136
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._ignoreLayoutSubviews",
+      "metadata_address": "0x1dce16dec",
+      "offset": 16
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._keyboardSceneIdentifierEnteringForeground",
+      "metadata_address": "0x1dce16e54",
+      "offset": 168
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._keyboardSnapshot",
+      "metadata_address": "0x1dce16dfc",
+      "offset": 48
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._keyboardSource",
+      "metadata_address": "0x1dce16e50",
+      "offset": 160
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._lastEventSource",
+      "metadata_address": "0x1dce16e7c",
+      "offset": 192
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._lastScreen",
+      "metadata_address": "0x1dce16e3c",
+      "offset": 120
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._localAppIAVHeight",
+      "metadata_address": "0x1dce16e80",
+      "offset": 200
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._minimumKeyboardHeights",
+      "metadata_address": "0x1dce16e48",
+      "offset": 144
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._pendingKeyboardGrabs",
+      "metadata_address": "0x1dce16e30",
+      "offset": 104
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._recursionCheck",
+      "metadata_address": "0x1dce16e2c",
+      "offset": 96
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._requiredLevel",
+      "metadata_address": "0x1dce16df4",
+      "offset": 32
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._requiredScene",
+      "metadata_address": "0x1dce16df0",
+      "offset": 24
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._resignActiveByControlCenter",
+      "metadata_address": "0x1dce16e18",
+      "offset": 75
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._shouldFence",
+      "metadata_address": "0x1dce16e60",
+      "offset": 185
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._suppressedScene",
+      "metadata_address": "0x1dce16e20",
+      "offset": 80
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._takingSnapshot",
+      "metadata_address": "0x1dce16e34",
+      "offset": 112
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._updatingHeight",
+      "metadata_address": "0x1dce16e5c",
+      "offset": 184
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._updatingKeyWindow",
+      "metadata_address": "0x1dce16e70",
+      "offset": 189
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._windowControllers",
+      "metadata_address": "0x1dce16de8",
+      "offset": 8
+    },
+    {
+      "name": "_OBJC_IVAR_$__UIRemoteKeyboards._windowEnabled",
+      "metadata_address": "0x1dce16e38",
+      "offset": 113
+    }
+  ],
+  "API": "Public Darwin task_for_pid, mach_vm_read_overwrite, mach_port_deallocate; supplied SDK at build time. No task writes or suspension. Access denial remains an error.",
+  "reproduction": "Tests use synthetic memory and compile exact source; no donor image, sibling checkout or private SDK needed for host tests. Real target requires matching UUID; no fallback layouts.",
+  "limits": [
+    "Not an atomic target snapshot; objects can change or become unreadable",
+    "Pointer existence alone does not establish XPC handshake, window visibility or rendering",
+    "Cached inputUIOOP byte valid only after once token initialized; no feature override",
+    "No user strings, typed text, credentials or object payload content read",
+    "No target-process, HID, display, network or UART state modification; optional installer only places this source-built diagnostic executable."
+  ],
+  "remote_ivar_types": [
+    {
+      "name": "_windowControllers",
+      "type": "@\"NSHashTable\"",
+      "bytes": 8,
+      "alignment_log2": 3,
+      "record_va": "0x1d5de99b0"
+    },
+    {
+      "name": "_ignoreLayoutSubviews",
+      "type": "i",
+      "bytes": 4,
+      "alignment_log2": 2,
+      "record_va": "0x1d5de99d0"
+    },
+    {
+      "name": "_requiredScene",
+      "type": "@\"FBSScene\"",
+      "bytes": 8,
+      "alignment_log2": 3,
+      "record_va": "0x1d5de99f0"
+    },
+    {
+      "name": "_requiredLevel",
+      "type": "d",
+      "bytes": 8,
+      "alignment_log2": 3,
+      "record_va": "0x1d5de9a10"
+    },
+    {
+      "name": "_activePIDs",
+      "type": "@\"NSMutableArray\"",
+      "bytes": 8,
+      "alignment_log2": 3,
+      "record_va": "0x1d5de9a30"
+    },
+    {
+      "name": "_keyboardSnapshot",
+      "type": "@\"UIView\"",
+      "bytes": 8,
+      "alignment_log2": 3,
+      "record_va": "0x1d5de9a50"
+    },
+    {
+      "name": "_expectingInitialState",
+      "type": "B",
+      "bytes": 1,
+      "alignment_log2": 0,
+      "record_va": "0x1d5de9a70"
+    },
+    {
+      "name": "_hostedCount",
+      "type": "i",
+      "bytes": 4,
+      "alignment_log2": 2,
+      "record_va": "0x1d5de9a90"
+    },
+    {
+      "name": "_focusedSceneIdentityStringOrIdentifier",
+      "type": "@\"NSString\"",
+      "bytes": 8,
+      "alignment_log2": 3,
+      "record_va": "0x1d5de9ab0"
+    },
+    {
+      "name": "_hadFocusBeforeOverlay",
+      "type": "B",
+      "bytes": 1,
+      "alignment_log2": 0,
+      "record_va": "0x1d5de9ad0"
+    },
+    {
+      "name": "_deactivatedByControlCenter",
+      "type": "B",
+      "bytes": 1,
+      "alignment_log2": 0,
+      "record_va": "0x1d5de9af0"
+    },
+    {
+      "name": "_deactivatedBySystemAnimation",
+      "type": "B",
+      "bytes": 1,
+      "alignment_log2": 0,
+      "record_va": "0x1d5de9b10"
+    },
+    {
+      "name": "_resignActiveByControlCenter",
+      "type": "B",
+      "bytes": 1,
+      "alignment_log2": 0,
+      "record_va": "0x1d5de9b30"
+    },
+    {
+      "name": "_enqueuedWillEnterForegroundActions",
+      "type": "B",
+      "bytes": 1,
+      "alignment_log2": 0,
+      "record_va": "0x1d5de9b50"
+    },
+    {
+      "name": "_suppressedScene",
+      "type": "@\"UIWindowScene\"",
+      "bytes": 8,
+      "alignment_log2": 3,
+      "record_va": "0x1d5de9b70"
+    },
+    {
+      "name": "_expectedSuppression",
+      "type": "B",
+      "bytes": 1,
+      "alignment_log2": 0,
+      "record_va": "0x1d5de9b90"
+    },
+    {
+      "name": "_externalSuppression",
+      "type": "i",
+      "bytes": 4,
+      "alignment_log2": 2,
+      "record_va": "0x1d5de9bb0"
+    },
+    {
+      "name": "_recursionCheck",
+      "type": "i",
+      "bytes": 4,
+      "alignment_log2": 2,
+      "record_va": "0x1d5de9bd0"
+    },
+    {
+      "name": "_pendingKeyboardGrabs",
+      "type": "@\"NSMutableSet\"",
+      "bytes": 8,
+      "alignment_log2": 3,
+      "record_va": "0x1d5de9bf0"
+    },
+    {
+      "name": "_takingSnapshot",
+      "type": "B",
+      "bytes": 1,
+      "alignment_log2": 0,
+      "record_va": "0x1d5de9c10"
+    },
+    {
+      "name": "_windowEnabled",
+      "type": "B",
+      "bytes": 1,
+      "alignment_log2": 0,
+      "record_va": "0x1d5de9c30"
+    },
+    {
+      "name": "_lastScreen",
+      "type": "@\"UIScreen\"",
+      "bytes": 8,
+      "alignment_log2": 3,
+      "record_va": "0x1d5de9c50"
+    },
+    {
+      "name": "_disablingKeyboard",
+      "type": "B",
+      "bytes": 1,
+      "alignment_log2": 0,
+      "record_va": "0x1d5de9c70"
+    },
+    {
+      "name": "_iavHeight",
+      "type": "d",
+      "bytes": 8,
+      "alignment_log2": 3,
+      "record_va": "0x1d5de9c90"
+    },
+    {
+      "name": "_minimumKeyboardHeights",
+      "type": "@\"NSMapTable\"",
+      "bytes": 8,
+      "alignment_log2": 3,
+      "record_va": "0x1d5de9cb0"
+    },
+    {
+      "name": "_eventObserver",
+      "type": "@\"_UIRemoteKeyboardsEventObserver\"",
+      "bytes": 8,
+      "alignment_log2": 3,
+      "record_va": "0x1d5de9cd0"
+    },
+    {
+      "name": "_keyboardSource",
+      "type": "q",
+      "bytes": 8,
+      "alignment_log2": 3,
+      "record_va": "0x1d5de9cf0"
+    },
+    {
+      "name": "_keyboardSceneIdentifierEnteringForeground",
+      "type": "@\"NSString\"",
+      "bytes": 8,
+      "alignment_log2": 3,
+      "record_va": "0x1d5de9d10"
+    },
+    {
+      "name": "_assertionController",
+      "type": "@\"_UIAssertionController\"",
+      "bytes": 8,
+      "alignment_log2": 3,
+      "record_va": "0x1d5de9d30"
+    },
+    {
+      "name": "_updatingHeight",
+      "type": "B",
+      "bytes": 1,
+      "alignment_log2": 0,
+      "record_va": "0x1d5de9d50"
+    },
+    {
+      "name": "_shouldFence",
+      "type": "B",
+      "bytes": 1,
+      "alignment_log2": 0,
+      "record_va": "0x1d5de9d70"
+    },
+    {
+      "name": "_enableMultiscreenHack",
+      "type": "B",
+      "bytes": 1,
+      "alignment_log2": 0,
+      "record_va": "0x1d5de9d90"
+    },
+    {
+      "name": "_currentKeyboard",
+      "type": "B",
+      "bytes": 1,
+      "alignment_log2": 0,
+      "record_va": "0x1d5de9db0"
+    },
+    {
+      "name": "_didSignalKeyboardChangedForCurrentKeyboard",
+      "type": "B",
+      "bytes": 1,
+      "alignment_log2": 0,
+      "record_va": "0x1d5de9dd0"
+    },
+    {
+      "name": "_updatingKeyWindow",
+      "type": "B",
+      "bytes": 1,
+      "alignment_log2": 0,
+      "record_va": "0x1d5de9df0"
+    },
+    {
+      "name": "_handlingRemoteEvent",
+      "type": "B",
+      "bytes": 1,
+      "alignment_log2": 0,
+      "record_va": "0x1d5de9e10"
+    },
+    {
+      "name": "_handlingViewServiceEvent",
+      "type": "B",
+      "bytes": 1,
+      "alignment_log2": 0,
+      "record_va": "0x1d5de9e30"
+    },
+    {
+      "name": "_lastEventSource",
+      "type": "q",
+      "bytes": 8,
+      "alignment_log2": 3,
+      "record_va": "0x1d5de9e50"
+    },
+    {
+      "name": "_localAppIAVHeight",
+      "type": "d",
+      "bytes": 8,
+      "alignment_log2": 3,
+      "record_va": "0x1d5de9e70"
+    },
+    {
+      "name": "_connection",
+      "type": "@\"NSXPCConnection\"",
+      "bytes": 8,
+      "alignment_log2": 3,
+      "record_va": "0x1d5de9e90"
+    },
+    {
+      "name": "_currentState",
+      "type": "@\"_UIKeyboardChangedInformation\"",
+      "bytes": 8,
+      "alignment_log2": 3,
+      "record_va": "0x1d5de9eb0"
+    },
+    {
+      "name": "_backupState",
+      "type": "@\"_UIKeyboardChangedInformation\"",
+      "bytes": 8,
+      "alignment_log2": 3,
+      "record_va": "0x1d5de9ed0"
+    }
+  ],
+  "build": {
+    "script": "tools/build-a04br3-keyboard-state.sh",
+    "target": "arm64-apple-ios16.0",
+    "signing": "ad-hoc codesign, strict verification; no policy-bypass entitlements",
+    "runtime": "effective uid 0, explicit PID and cache slide; actual task_for_pid denial is fatal",
+    "payload_group": [
+      "tools/a04br3_keyboard_state.c",
+      "tools/a04br3_keyboard_state_sources.json",
+      "tools/build-a04br3-keyboard-state.sh"
+    ],
+    "activation": "complete immutable source pin required; parent owns pin update; no automatic execution"
+  }
+}
