@@ -10,6 +10,7 @@ typedef unsigned long long u64;
 extern int open(const char *,int,...),close(int),dup2(int,int),getpid(void),setsid(void),fork(void),execv(const char *,char *const *),waitpid(int,int *,int),ioctl(int,unsigned long,...),reboot(int);
 extern ssize_t read(int,void *,size_t),write(int,const void *,size_t);
 extern void _exit(int),sync(void);
+extern unsigned int sleep(unsigned int);
 extern size_t strlen(const char *);
 extern int strcmp(const char *,const char *),memcmp(const void *,const void *,size_t),snprintf(char *,size_t,const char *,...);
 extern void *memcpy(void *,const void *,size_t),*memset(void *,int,size_t);
@@ -65,10 +66,19 @@ static int command(const char *line,char reply[512]){
 }
 #ifndef A04_CONSOLE_TEST
 static void console(void){
- (void)setsid();int fd=open("/dev/console",2|0x20000);if(fd<0)_exit(120);for(int n=0;n<3;n++)if(dup2(fd,n)<0)_exit(121);if(fd>2)close(fd);
+ (void)setsid();int fd=open("/dev/console",2);if(fd<0)_exit(120);
+ (void)ioctl(fd,0x20007461UL,0); /* TIOCSCTTY, public Darwin ttycom.h */
+ int group=getpid();(void)ioctl(fd,0x80047476UL,&group); /* TIOCSPGRP */
+ for(int n=0;n<3;n++)if(dup2(fd,n)<0)_exit(121);if(fd>2)close(fd);
  say("\nA04BR3_CONSOLE READY version=1 canonical-ascii boot-update-explicit\n");
  char line[1024],reply[512];unsigned at=0;int overflow=0;
- for(;;){char c;ssize_t n=read(0,&c,1);if(n<=0){if(n<0&&ERRNO==4)continue;_exit(122);}if(c=='\r'||c=='\n'){if(!overflow&&at){line[at]=0;reply[0]=0;int restart=command(line,reply);if(reply[0])say(reply);if(restart){sync();if(reboot(0)<0)say("\nA04BR3_CONSOLE reboot failed\n");}}at=0;overflow=0;}else if(!overflow){if(at+1<sizeof(line))line[at++]=c;else overflow=1;}}
+ for(;;){char c;ssize_t n=read(0,&c,1);if(n<=0){int error=n<0?ERRNO:0;if(error==4)continue;
+   static unsigned recoveries=0;char message[128];
+   snprintf(message,sizeof(message),"\nA04BR3_CONSOLE input recovery=%u read=%ld errno=%d\n",++recoveries,(long)n,error);say(message);
+   if(recoveries>60)_exit(122);sleep(1);
+   int replacement=open("/dev/console",2);if(replacement<0)continue;
+   (void)ioctl(replacement,0x20007461UL,0);int group=getpid();(void)ioctl(replacement,0x80047476UL,&group);
+   for(int j=0;j<3;j++)(void)dup2(replacement,j);if(replacement>2)close(replacement);continue;}if(c=='\r'||c=='\n'){if(!overflow&&at){line[at]=0;reply[0]=0;int restart=command(line,reply);if(reply[0])say(reply);if(restart){sync();if(reboot(0)<0)say("\nA04BR3_CONSOLE reboot failed\n");}}at=0;overflow=0;}else if(!overflow){if(at+1<sizeof(line))line[at++]=c;else overflow=1;}}
 }
 int main(int argc,char **argv){
  (void)argc;(void)argv;
