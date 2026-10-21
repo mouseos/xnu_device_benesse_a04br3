@@ -1,7 +1,7 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "b6ea020228289a6b18ae8b4914582773e062c70c",
+    "commit": "660f8c4e1559f9de4444dc762f91ab73711e4cdf",
     "role": "Source-built userland UART console, boot-only staged verified updater and normal MT8167 reboot path; first deployment and hardware validation pending"
   },
   "bootshim": {
