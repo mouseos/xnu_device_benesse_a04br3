@@ -7,6 +7,7 @@
 #include <stddef.h>
 #include <dlfcn.h>
 #include <zlib.h>
+#include <dirent.h>
 typedef unsigned long size_t;
 typedef long ssize_t;
 typedef unsigned int u32;
@@ -15,6 +16,7 @@ extern int open(const char *,int,...),close(int),dup2(int,int),getpid(void),sets
 extern ssize_t read(int,void *,size_t),write(int,const void *,size_t);
 extern void _exit(int),sync(void);
 extern unsigned int sleep(unsigned int);
+extern int usleep(unsigned int);
 extern size_t strlen(const char *);
 extern int strcmp(const char *,const char *),memcmp(const void *,const void *,size_t),snprintf(char *,size_t,const char *,...);
 extern void *memcpy(void *,const void *,size_t),*memset(void *,int,size_t);
@@ -143,13 +145,35 @@ static int identifier(const char *s){size_t n=strlen(s);if(!n||n>32)return 0;for
 static void boot_reset(void){gzip_release();gzip_mode=0;compressed_done=compressed_expected=0;if(bootfd>=0)close(bootfd);bootfd=-1;staged=expected_image_bytes=0;upload_broken=upload_verified=0;}
 static int bootopen(void){if(bootfd<0)bootfd=open("/dev/a04boot",1);return bootfd<0?ERRNO:0;}
 /* Returns 1 only for an explicit reboot request, after its ACK is written. */
+/* Small explicit command shell; no donor /bin/sh dependency. Bounded output.
+ * Filesystem operations are requested by the physical USB/UART
+ * operator. This remains a development root console, not a login service. */
+extern char *getcwd(char *,size_t);
+extern int chdir(const char *);
+static int shell_command(int n,char **v){
+ if(n==1 && !strcmp(v[0],"help"))return say("help | pwd | cd PATH | ls [PATH] | cat PATH | exec /absolute/program ARGS; status/upload/reboot are host commands\n")?5:0;
+ if(n==1 && !strcmp(v[0],"pwd")){char path[1024];if(!getcwd(path,sizeof(path)))return ERRNO;return say(path)||say("\n")?5:0;}
+ if(n==2 && !strcmp(v[0],"cd"))return chdir(v[1])<0?ERRNO:0;
+ if((n==1||n==2) && !strcmp(v[0],"ls")){
+  DIR *dir=opendir(n==2?v[1]:".");if(!dir)return ERRNO;int error=0;unsigned count=0;
+  for(;;){struct dirent *entry=readdir(dir);if(!entry)break;if(++count>4096){error=27;break;}if(say(entry->d_name)||say("\n")){error=5;break;}}
+  if(closedir(dir)<0&&!error)error=ERRNO;return error;
+ }
+ if(n==2 && !strcmp(v[0],"cat")){
+  int fd=open(v[1],0);if(fd<0)return ERRNO;unsigned total=0;int error=0;char data[1025];
+  for(;;){ssize_t got=read(fd,data,1024);if(!got)break;if(got<0){error=ERRNO;break;}total+=(unsigned)got;if(total>1024*1024){error=27;break;}data[got]=0;size_t at=0;while(at<(size_t)got){ssize_t sent=write(1,data+at,(size_t)got-at);if(sent<=0){error=sent<0?ERRNO:5;break;}at+=(size_t)sent;}if(error)break;}
+  if(close(fd)<0&&!error)error=ERRNO;return error;
+ }
+ return 22;
+}
 static int command(const char *line,char reply[512]){
  char work[1024],*v[32];size_t len=strlen(line);if(len>=sizeof(work))return 0;memcpy(work,line,len+1);int n=tokens(work,v,31);
  if(n<3||strcmp(v[0],"@A04")||!identifier(v[1]))return 0;
  if(!strcmp(line,last_line)){memcpy(reply,last_reply,strlen(last_reply)+1);return 0;}
  if(!strcmp(v[1],last_id)){snprintf(reply,512,"\n!A04 %s ERR 22\n",v[1]);return 0;}
  int err=0,restart=0;char detail[320]="";
- if(!strcmp(v[2],"help")&&n==3)snprintf(detail,sizeof(detail),"status sample boot-begin boot-data boot-commit boot-abort reboot exec boot-zbegin boot-zdata boot-zfinish");
+ if(!strcmp(v[2],"help")&&n==3)snprintf(detail,sizeof(detail),"status sample boot-begin boot-data boot-commit boot-abort reboot exec boot-zbegin boot-zdata boot-zfinish shell");
+ else if(!strcmp(v[2],"shell")&&n>=4){err=shell_command(n-3,&v[3]);if(!err)snprintf(detail,sizeof(detail),"shell-status=0");}
  else if(!strcmp(v[2],"sample")&&n==3){if(ioctl(0,0x20007465UL,(void *)0)<0)err=ERRNO;else snprintf(detail,sizeof(detail),"tty-status-requested");}
  else if(!strcmp(v[2],"status")&&n==3){struct boot_info info={0};err=bootopen();if(!err&&ioctl(bootfd,INFO,&info)<0)err=ERRNO;if(!err)snprintf(detail,sizeof(detail),"version=%u flags=%u partition=%llu staged=%llu image=%llu",info.version,info.flags,info.partition_bytes,info.staged_bytes,info.image_bytes);}
  else if(!strcmp(v[2],"boot-zbegin")&&n==6){
@@ -225,6 +249,12 @@ static void launch_native_with_console(void (*run_console)(void)){
 }
 #ifndef A04_CONSOLE_TEST
 #include <termios.h>
+static int console_usb;
+static int open_console(void){
+ if(!console_usb)return open("/dev/console",2);
+ for(unsigned tries=0;tries<120;tries++){int fd=open("/dev/a04usb",2);if(fd>=0)return fd;sleep(1);}
+ return -1;
+}
 static int configure_uart(int fd){
  struct termios t;if(tcgetattr(fd,&t)<0)return ERRNO;
  t.c_iflag&=~(IGNCR|INLCR|ISTRIP|IXON|IXOFF|BRKINT);t.c_iflag|=ICRNL|IGNBRK;
@@ -234,15 +264,16 @@ static int configure_uart(int fd){
  return tcsetattr(fd,TCSANOW,&t)<0?ERRNO:0;
 }
 static void console(void){
- (void)setsid();int fd=open("/dev/console",2);if(fd<0)_exit(120);
- (void)ioctl(fd,0x20007461UL,0); /* TIOCSCTTY, public Darwin ttycom.h */
- int group=getpid();(void)ioctl(fd,0x80047476UL,&group); /* TIOCSPGRP */
+ (void)setsid();int fd=open_console();if(fd<0)_exit(120);
+ if(!console_usb)(void)ioctl(fd,0x20007461UL,0); /* TIOCSCTTY UART only */
+ int group=getpid();if(!console_usb)(void)ioctl(fd,0x80047476UL,&group); /* TIOCSPGRP */
  for(int n=0;n<3;n++)if(dup2(fd,n)<0)_exit(121);if(fd>2)close(fd);
- int terminal_error=configure_uart(0);char terminal_message[128];
+ int terminal_error=console_usb?0:configure_uart(0);char terminal_message[128];
  snprintf(terminal_message,sizeof(terminal_message),"\nA04BR3_CONSOLE terminal configuration errno=%d\n",terminal_error);say(terminal_message);if(terminal_error)_exit(124);
- say("\nA04BR3_CONSOLE READY version=1 canonical-ascii boot-update-explicit\n");
+ say(console_usb?"\nA04BR3_USBCONSOLE READY version=1 canonical-ascii boot-update-explicit shell\n":"\nA04BR3_CONSOLE READY version=1 canonical-ascii boot-update-explicit\n");
  char line[1024],reply[512];unsigned at=0;int overflow=0;
- for(;;){char c;ssize_t n=read(0,&c,1);if(n<=0){int error=n<0?ERRNO:0;if(error==4)continue;
+ for(;;){char c;ssize_t n=read(0,&c,1);if(n<=0){int error=n<0?ERRNO:0;if(error==4)continue;if(console_usb&&(error==35||error==11)){usleep(10000);continue;}
+   if(console_usb){boot_reset();at=0;overflow=0;last_line[0]=last_id[0]=last_reply[0]=0;for(int j=0;j<3;j++)close(j);int next=open_console();if(next<0)_exit(122);for(int j=0;j<3;j++)if(dup2(next,j)<0)_exit(121);if(next>2)close(next);say("\nA04BR3_USBCONSOLE RECONNECTED; full BEGIN required\n");continue;}
    static unsigned recoveries=0;char message[128];
    snprintf(message,sizeof(message),"\nA04BR3_CONSOLE input recovery=%u read=%ld errno=%d\n",++recoveries,(long)n,error);say(message);
    if(recoveries>60)_exit(122);sleep(1);
@@ -250,9 +281,10 @@ static void console(void){
    if(configure_uart(replacement)){close(replacement);_exit(124);}(void)ioctl(replacement,0x20007461UL,0);int group=getpid();(void)ioctl(replacement,0x80047476UL,&group);
    for(int j=0;j<3;j++)if(dup2(replacement,j)<0)_exit(121);if(replacement>2)close(replacement);continue;}if(c=='\r'||c=='\n'){if(!overflow&&at){line[at]=0;reply[0]=0;int restart=command(line,reply);int acknowledged=reply[0] && say(reply)==0;if(restart && acknowledged){sync();if(reboot(0)<0)say("\nA04BR3_CONSOLE reboot failed\n");}}at=0;overflow=0;}else if(!overflow){if(at+1<sizeof(line))line[at++]=c;else overflow=1;}}
 }
+static void usb_console(void){console_usb=1;console();}
 int main(int argc,char **argv){
  (void)argc;(void)argv;
- if(getpid()==1)launch_native_with_console(console);
+ if(getpid()==1){int pid=fork();if(!pid)_exit(supervise_console(usb_console));launch_native_with_console(console);}
  console();return 0;
 }
 #endif

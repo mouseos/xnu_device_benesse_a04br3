@@ -9,7 +9,7 @@ TOOLS=Path(__file__).resolve().parents[1]/'tools'
 class RebootACK(unittest.TestCase):
     def test_reboot_requires_entire_ack(self):
         unit=(TOOLS/'uart-console.c').read_text()
-        console=unit[unit.index('static void console(void){'):unit.index('\nint main(int argc')]
+        console=unit[unit.index('static int console_usb;'):unit.index('static int configure_uart(int fd){')]+unit[unit.index('static void console(void){'):unit.index('\nint main(int argc')]
         source=r'''
 #define A04_CONSOLE_TEST 1
 #define open mockopen

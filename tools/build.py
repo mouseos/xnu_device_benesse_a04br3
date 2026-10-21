@@ -51,6 +51,7 @@ def main():
     parser.add_argument('--uart-samples',action='store_true',help='Development-only Ctrl-T live stack sampling on UART')
     parser.add_argument('--display-hz',type=int,choices=(5,10,20),default=5,help='Changed-pixel copy limit with --fast-development')
     parser.add_argument('--fast-development',action='store_true',help='Opt-in low-load software display: 20Hz notifications, 5Hz changed-pixel copies')
+    parser.add_argument('--usb-console',action='store_true',help='Enable explicit MT8167 USB command console and checked boot update transport')
     parser.add_argument('--uart-console',action='store_true',help='Install source-built UART command console and boot-only updater')
     parser.add_argument('--prepare-development-root',action='store_true',help='Create missing container parents on the full writable development root')
     parser.add_argument('--display-probe',action='store_true',help='Opt-in reserved LK framebuffer RGB probe and Video handoff')
@@ -174,6 +175,9 @@ def main():
         if args.fairplay_service != "unchanged":
             cmdline += ' a04br3.fp=' + ('1' if args.fairplay_service == 'disabled' else '2')
 
+        if args.usb_console:
+            if not args.uart_console: parser.error('--usb-console requires --uart-console')
+            cmdline += ' a04br3.usb=1'
         if args.uart_console:
             if not (args.full_donor_root and args.prepare_development_root and args.writable_root):
                 parser.error('--uart-console requires full writable development root preparation')
@@ -214,6 +218,9 @@ def main():
             cmdline += ' rd=emmcroot0 a04br3.unsealed_root=1'
         if args.msdc_probe or args.emmc_root:
             cmdline += ' a04br3.msdc_probe=1'
+        if args.usb_console:
+            if not args.uart_console: parser.error('--usb-console requires --uart-console')
+            cmdline += ' a04br3.usb=1'
         if args.uart_console:
             # Keep the existing 608-byte handoff ABI and complete source IDs.
             # Copy cadence defaults to10Hz; omit only that redundant default.

@@ -202,7 +202,7 @@ int main(void){
 class ConsoleSetup(unittest.TestCase):
  def test_actual_console_setup_failure_never_announces_ready(self):
   unit=(ROOT/'tools/uart-console.c').read_text()
-  console=unit[unit.index('static void console(void){'):unit.index('\nint main(int argc')]
+  console=unit[unit.index('static int console_usb;'):unit.index('static int configure_uart(int fd){')]+unit[unit.index('static void console(void){'):unit.index('\nint main(int argc')]
   source=r"""
 #define A04_CONSOLE_TEST 1
 #define open mockopen
