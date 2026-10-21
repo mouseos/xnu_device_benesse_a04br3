@@ -1,7 +1,7 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "d8b1c5ba9bb7a08ee8f1b533ced2675390c5789f",
+    "commit": "62fc01d3854c6af09aeab190aa8b13fc65114581",
     "role": "Source-built resilient UART console, verified framebuffer preview helper, staged boot updater; native Wi-Fi class authorization/open join result, static IOKit and HID settings persistence. Hardware verification remains separate."
   },
   "bootshim": {
