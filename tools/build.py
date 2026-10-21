@@ -50,6 +50,7 @@ def main():
     parser.add_argument('--uart-samples',action='store_true',help='Development-only Ctrl-T live stack sampling on UART')
     parser.add_argument('--display-hz',type=int,choices=(5,10,20),default=5,help='Changed-pixel copy limit with --fast-development')
     parser.add_argument('--fast-development',action='store_true',help='Opt-in low-load software display: 20Hz notifications, 5Hz changed-pixel copies')
+    parser.add_argument('--uart-console',action='store_true',help='Install source-built UART command console and boot-only updater')
     parser.add_argument('--prepare-development-root',action='store_true',help='Create missing container parents on the full writable development root')
     parser.add_argument('--display-probe',action='store_true',help='Opt-in reserved LK framebuffer RGB probe and Video handoff')
     parser.add_argument('--full-donor-root',action='store_true',help='Explicit filesystem development policy for complete donor copy')
@@ -172,6 +173,10 @@ def main():
         if args.fairplay_service != "unchanged":
             cmdline += ' a04br3.fp=' + ('1' if args.fairplay_service == 'disabled' else '2')
 
+        if args.uart_console:
+            if not (args.full_donor_root and args.prepare_development_root and args.writable_root):
+                parser.error('--uart-console requires full writable development root preparation')
+            cmdline += ' a04br3.uart_console=1 a04br3.boot_update=1 launchdsuffix=a04br3'
         if args.uart_samples:
             cmdline += ' a04br3.sample_uart=1'
         if args.prepare_development_root:

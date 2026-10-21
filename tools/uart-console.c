@@ -51,7 +51,7 @@ static int command(const char *line,char reply[512]){
  int err=0,restart=0;char detail[320]="";
  if(!strcmp(v[2],"help")&&n==3)snprintf(detail,sizeof(detail),"status boot-begin boot-data boot-commit boot-abort reboot exec");
  else if(!strcmp(v[2],"status")&&n==3){struct boot_info info={0};err=bootopen();if(!err&&ioctl(bootfd,INFO,&info)<0)err=ERRNO;if(!err)snprintf(detail,sizeof(detail),"version=%u flags=%u partition=%llu staged=%llu image=%llu",info.version,info.flags,info.partition_bytes,info.staged_bytes,info.image_bytes);}
- else if(!strcmp(v[2],"boot-begin")&&n==5){struct boot_begin b={0};if(number(v[3],&b.image_bytes)||digest(v[4],b.sha256))err=22;else{err=bootopen();if(!err&&ioctl(bootfd,BEGIN,&b)<0)err=ERRNO;if(!err){staged=0;snprintf(detail,sizeof(detail),"offset=0");}}}
+ else if(!strcmp(v[2],"boot-begin")&&n==5){struct boot_begin b={0};if(number(v[3],&b.image_bytes)||digest(v[4],b.sha256))err=22;else{if(bootfd>=0){close(bootfd);bootfd=-1;}err=bootopen();if(!err&&ioctl(bootfd,BEGIN,&b)<0)err=ERRNO;if(!err){staged=0;snprintf(detail,sizeof(detail),"offset=0");}}}
  else if(!strcmp(v[2],"boot-data")&&n==5){u64 off=0;unsigned char data[384];int count=decode(v[4],data);if(number(v[3],&off)||off!=staged||count<1)err=22;else if(bootfd<0)err=9;else{int at=0;while(at<count){ssize_t k=write(bootfd,data+at,(size_t)(count-at));if(k<=0){err=k<0?ERRNO:5;break;}at+=(int)k;staged+=(u64)k;}if(!err)snprintf(detail,sizeof(detail),"offset=%llu",staged);}}
  else if(!strcmp(v[2],"boot-commit")&&n==3){if(bootfd<0)err=9;else if(ioctl(bootfd,COMMIT,0)<0)err=ERRNO;else snprintf(detail,sizeof(detail),"boot-write-verified");}
  else if(!strcmp(v[2],"boot-abort")&&n==3){if(bootfd>=0){if(ioctl(bootfd,ABORT,0)<0)err=ERRNO;close(bootfd);bootfd=-1;}staged=0;}
