@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "de38ce059b674568a14bd4e1e047f781bd79d8ec",
-    "role": "Correct MT8167 WACS2 register map for BU21025 VGP1 power"
+    "commit": "39b00e09ba2d204b4afd795ca30d01a5ec46890c",
+    "role": "Board DTS PWRAP physical base and WACS2 map for touch power"
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
