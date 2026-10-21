@@ -34,6 +34,7 @@ def main():
     parser.add_argument('--out', type=Path, default=ROOT.parent / 'out' / 'diagnostic')
     parser.add_argument('--kernel', type=Path)
     parser.add_argument('--uart-samples',action='store_true',help='Development-only Ctrl-T live stack sampling on UART')
+    parser.add_argument('--display-hz',type=int,choices=(5,10,20),default=5,help='Changed-pixel copy limit with --fast-development')
     parser.add_argument('--fast-development',action='store_true',help='Opt-in low-load software display: 20Hz notifications, 5Hz changed-pixel copies')
     parser.add_argument('--prepare-development-root',action='store_true',help='Create missing container parents on the full writable development root')
     parser.add_argument('--display-probe',action='store_true',help='Opt-in reserved LK framebuffer RGB probe and Video handoff')
@@ -55,6 +56,8 @@ def main():
     parser.add_argument("--fairplay-service", choices=("unchanged","disabled","restored"),
         default="unchanged", help="Development native launchd override; does not implement FairPlay")
     args = parser.parse_args()
+    if args.display_hz != 5 and not args.fast_development:
+        parser.error('--display-hz requires --fast-development')
     if args.fairplay_service != "unchanged" and not (args.full_donor_root and args.prepare_development_root):
         parser.error("--fairplay-service requires full donor root preparation")
     if args.virtual_audio != "unchanged" and not (args.full_donor_root and args.prepare_development_root):
@@ -136,7 +139,7 @@ def main():
         if args.prepare_development_root:
             cmdline += ' a04br3.prepare_root=1'
         if args.fast_development:
-            cmdline += ' a04br3fb_diff=1 a04br3fb_vsync_hz=20 a04br3fb_hz=5'
+            cmdline += f' a04br3fb_diff=1 a04br3fb_vsync_hz=20 a04br3fb_hz={args.display_hz}'
         if args.display_probe:
             cmdline += ' a04br3.display_probe=1'
         if args.development_launchd_cache:
