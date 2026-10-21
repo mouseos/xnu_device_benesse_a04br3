@@ -13,6 +13,7 @@ import mkinit
 import rogue_firmware
 import wmt_firmware
 import wlan_firmware
+from bootargs_compact import compact_for_handoff
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -219,8 +220,13 @@ def main():
             cmdline = cmdline.replace(' keepsyms=1','').replace(' -noprogress','')
             if args.display_hz == 10:
                 cmdline = cmdline.replace(' a04br3fb_hz=10','')
+        original_command_bytes = len(cmdline.encode('ascii'))
+        cmdline = compact_for_handoff(cmdline)
         raw, kernel_info = payload.build(kernel, int(memory['physical_base'], 0),
                                          int(memory['managed_size'], 0), cmdline, ramdisk=root_image, compact_ramdisk=bool(args.rootfs), gpu_firmware=gpu_blob, wmt_firmware=wmt_blob, wlan_firmware=wlan_blob)
+        kernel_info['boot_command_line'] = cmdline
+        kernel_info['boot_command_line_bytes'] = len(cmdline.encode('ascii'))
+        kernel_info['boot_numeric_compacted'] = original_command_bytes != len(cmdline)
         if wlan_blob is not None:
             kernel_info["wlan_firmware"]["input_path"] = str(args.wlan_firmware.resolve())
         if wmt_blob is not None:

@@ -1,0 +1,17 @@
+{
+  "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
+  "commit": "79bb9aaf861f96fa4772f9d639838a9cab97a8b6",
+  "path": "pexpert/gen/bootargs.c",
+  "source_sha256": "1431f1f8aacae240b87bd29cd91905784c968f8014784201b3ed862bdb1b4ed9",
+  "excerpts": [
+    "isargsep",
+    "argstrcpy",
+    "argstrcpy2",
+    "argnumcpy",
+    "getval",
+    "PE_parse_boot_argn_internal"
+  ],
+  "modifications": "No function body changes. Host includes/types/macros and test wrapper only; not a kernel build input.",
+  "license": "APSL-2.0; APPLE_LICENSE retained",
+  "exclusions": "Do not compact raw bootshim/userland string consumers such as a04br3.display_probe=1"
+}

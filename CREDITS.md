@@ -53,3 +53,8 @@ segment placement documented by Imagination Technologies / MediaTek's
 https://github.com/mouseos/android_kernel_benesse_TAB-A04-BR3.git at
 `eb47f42e1f84fe5716ef239620725f82718a620a`. It is a new Python implementation;
 no proprietary firmware or original firmware executable code is included.
+
+`tests/fixtures/apple_bootargs/parser.c` retains exact Apple XNU boot-argument
+parser function excerpts under APSL 2.0, with Apple's original notice and
+`APPLE_LICENSE`. Its provenance records the fixed kernel source revision.
+The fixture verifies numeric flag compaction and is not a kernel payload.
