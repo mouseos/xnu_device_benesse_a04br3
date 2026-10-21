@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "157a3420c446e754782631006ad01530e608419f",
-    "role": "Automatic runtime NVRAM and WLAN NIC/passive scan; native networking family integration; bounded GPU firmware commands (hardware validation pending)"
+    "commit": "991db30a6a3725bc26967afec8447a30af468660",
+    "role": "Native MT6630 runtime command type correction and source wireless class registration; dynamic NVRAM; real GP/TA/3D GPU fences observed, rendering unimplemented"
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
