@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "d24f3ccfb97815b1d8e7a15ffc487fb1b5f3c37b",
-    "role": "SDK-verified initial Personal and genuine link publication, board memory-maintenance ABI, root capture/UI/console supervisor and source-built passive keyboard observation tool. Copy20/vsync20 packaging available; hardware verification pending."
+    "commit": "bc9abcd445ac328c3e59b41a25f40f74ca2cee33",
+    "role": "Initial native Personal/link and memory-maintenance ABI, framebuffer/keyboard observation, plus source-defined Rogue programs and optional isolated CPU resource trial. No GPU pixel/acceleration or physical Wi-Fi success claim."
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
