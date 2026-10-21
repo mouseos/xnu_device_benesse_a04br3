@@ -57,6 +57,16 @@ size_t contract(const void *blob,size_t bytes,void *adt,size_t cap){
         chosen=next(c for c in t[1] if c[0][b'name']==b'chosen\0');props=next(c[0] for c in chosen[1] if c[0][b'name']==b'memory-map\0')
         for key,d in zip((b'WLANFirmware-A04BR3',b'WMTFirmware-A04BR3',b'GPUFirmware-A04BR3'),assets):self.assertEqual(struct.unpack('<2Q',props[key]),(d[0],d[3]))
         self.assertNotIn(b'RAMDisk',props);self.assertFalse(info['wlan_firmware']['firmware_running'])
+        armio=next(c for c in t[1] if c[0][b'name']==b'arm-io\0')
+        wlan=next(c for c in armio[1] if c[0][b'name']==b'wlan\0')
+        self.assertFalse(wlan[1]);w=wlan[0]
+        self.assertEqual(w[b'compatible'],b'mediatek,mt6630-wlan\0')
+        self.assertEqual(w[b'transport'],b'sdio\0')
+        self.assertEqual(struct.unpack('<I',w[b'sdio-function']),(1,))
+        self.assertEqual(struct.unpack('<Q',w[b'sdio-host-address']),(0x11170000,))
+        self.assertNotIn(b'local-mac-address',w)
+        self.assertNotIn(b'reg',w) # SDIO function, not a fabricated MMIO aperture
+
     def test_kernel_parser_matches_python_rejections(self):
         good=firmware();self.assertEqual(self.lib.parse(good,len(good)),0)
         cases=[good[:n] for n in range(len(good))]
