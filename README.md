@@ -478,3 +478,26 @@ writer has changed the generated policy; unsupported formats are refused.
 `--fast-development` is enabled (default5). This changes software presentation
 pacing, not GPU acceleration. Ten/twenty Hz use one more boot-argument byte;
 the builder still enforces the shim's command-line capacity.
+
+## Rogue MIPS firmware staging
+
+The optional host tool validates the BVNC-specific, unmodified firmware and
+constructs zero-initialized code/data allocations from its ELF load segments.
+It does not install or upload them, and is not GPU acceleration. Obtain
+`rgx.fw.22.40.54.30` from your matching vendor source/image, as used by the
+board's m1.11ED5425693 DDK. The legacy stock `rgx.fw.signed` is a different
+format and is not interchangeable. There is no default path to a developer's
+local firmware and no firmware blob in this repository.
+
+```sh
+python3 device/tools/rogue_firmware.py \
+  --firmware /path/to/vendor/firmware/rgx.fw.22.40.54.30 \
+  --out out/rogue-firmware
+python3 -m unittest discover -s device/tests -p test_rogue_firmware.py
+```
+
+The output contains `code.bin`, `data.bin`, and `firmware.json` with exact
+section/segment placements and explicit unverified hardware state. Unsupported
+BVNC, formats, overlapping or out-of-range allocations/segments fail before
+output is created. GPU page tables, physical allocation and boot parameters
+must still be implemented before these buffers can run on the GPU.

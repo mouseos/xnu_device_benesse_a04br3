@@ -45,3 +45,11 @@ flash planner and FUSE range-view helper are original port source. Linux HFS+
 handles filesystem construction; Ubuntu packages supply the declared guest
 runtime, rsync and filesystem tools. FUSE 2.x provides the range-view API.
 Donor OS files remain local inputs and are not distributed in these repos.
+
+The Rogue firmware staging tool follows the firmware-info layout and MIPS ELF
+segment placement documented by Imagination Technologies / MediaTek's
+`m1.11ED5425693/services/include/rgx_fw_info.h` and
+`services/server/devices/rgx/rgxfwimageutils.c`, as distributed in
+https://github.com/mouseos/android_kernel_benesse_TAB-A04-BR3.git at
+`eb47f42e1f84fe5716ef239620725f82718a620a`. It is a new Python implementation;
+no proprietary firmware or original firmware executable code is included.
