@@ -13,7 +13,11 @@
 #include <string.h>
 #ifndef A04_KBD_STATE_TEST
 #include <mach/mach.h>
-#include <mach/mach_vm.h>
+/* iPhoneOS17.5's mach_vm.h deliberately rejects inclusion. The exported
+ * read-only MIG routine has this fixed user ABI (XNU mach_vm.defs): port32,
+ * address64, size64, destination64, returned size64. No replacement stub. */
+extern kern_return_t mach_vm_read_overwrite(mach_port_t, uint64_t, uint64_t,
+    uint64_t, uint64_t *);
 #else
 typedef unsigned mach_port_t;
 extern int mach_vm_read_overwrite(mach_port_t, uint64_t, uint64_t, uint64_t, uint64_t *);

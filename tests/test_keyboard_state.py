@@ -88,10 +88,10 @@ int main(void){
         declarations = """#pragma once
 #include <stdint.h>
 typedef unsigned mach_port_t;
+typedef int kern_return_t;
 extern mach_port_t mach_task_self(void);
 extern int task_for_pid(mach_port_t,int,mach_port_t*);
 extern int mach_port_deallocate(mach_port_t,mach_port_t);
-extern int mach_vm_read_overwrite(mach_port_t,uint64_t,uint64_t,uint64_t,uint64_t*);
 """
         harness = r'''
 #include <assert.h>
@@ -125,9 +125,11 @@ int main(void){
         with tempfile.TemporaryDirectory() as d:
             p = Path(d)
             (p/'public.h').write_text(declarations)
-            for name in ('mach/mach.h', 'mach/mach_vm.h'):
-                header=p/name;header.parent.mkdir(parents=True,exist_ok=True)
-                header.write_text('#include "public.h"\n')
+            header=p/'mach/mach.h';header.parent.mkdir(parents=True,exist_ok=True)
+            header.write_text('#include "public.h"\n')
+            # Match the actual iPhone SDK rejection, so this cannot silently
+            # regress to relying on an unavailable public MachVM header.
+            (p/'mach/mach_vm.h').write_text('#error mach_vm.h unsupported.\n')
             (p/'main.c').write_text(harness)
             subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror',
                 '-fsanitize=address,undefined','-no-pie','-I',str(p),'-I',str(SOURCE.parent),

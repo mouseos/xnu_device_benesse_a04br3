@@ -543,5 +543,10 @@
       "tools/build-a04br3-keyboard-state.sh"
     ],
     "activation": "complete immutable source pin required; parent owns pin update; no automatic execution"
+  },
+  "mach_vm_read_overwrite_abi": {
+    "source": "https://github.com/apple-oss-distributions/xnu/blob/xnu-8796.141.3/osfmk/mach/mach_vm.defs",
+    "signature": "kern_return_t(mach_port_t,uint64_t,uint64_t,uint64_t,uint64_t*)",
+    "sdk_observation": "Actual iPhoneOS17.5 SDK rejects mach_vm.h inclusion; use the unchanged exported MIG ABI. Actual SDK symbol link and target task access remain separate checks."
   }
 }
