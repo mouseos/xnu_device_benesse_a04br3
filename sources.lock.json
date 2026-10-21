@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "7d3b9ca1b5a3f2ed38e6deb8f778e72712458e91",
-    "role": "Native Personal/link publication with admin-down completion rejection; ACK-safe console, framebuffer/keyboard observation, bounded assetsd crashes and optional cold GPU resource trial. Radio, pixels, keyboard presentation and boot overwrite remain unverified."
+    "commit": "033bf5fb711cc19b9e66f3034647342592c44b66",
+    "role": "Optional lazy gzip console staging and bounded GPU firmware reset observation; retains native Wi-Fi link and existing boot-write verification. USB transport, radio association, GPU pixels and keyboard presentation remain unverified."
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
