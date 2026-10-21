@@ -53,7 +53,8 @@ static int command(const char *line,char reply[512]){
  if(!strcmp(line,last_line)){memcpy(reply,last_reply,strlen(last_reply)+1);return 0;}
  if(!strcmp(v[1],last_id)){snprintf(reply,512,"\n!A04 %s ERR 22\n",v[1]);return 0;}
  int err=0,restart=0;char detail[320]="";
- if(!strcmp(v[2],"help")&&n==3)snprintf(detail,sizeof(detail),"status boot-begin boot-data boot-commit boot-abort reboot exec");
+ if(!strcmp(v[2],"help")&&n==3)snprintf(detail,sizeof(detail),"status sample boot-begin boot-data boot-commit boot-abort reboot exec");
+ else if(!strcmp(v[2],"sample")&&n==3){if(ioctl(0,0x20007465UL,(void *)0)<0)err=ERRNO;else snprintf(detail,sizeof(detail),"tty-status-requested");}
  else if(!strcmp(v[2],"status")&&n==3){struct boot_info info={0};err=bootopen();if(!err&&ioctl(bootfd,INFO,&info)<0)err=ERRNO;if(!err)snprintf(detail,sizeof(detail),"version=%u flags=%u partition=%llu staged=%llu image=%llu",info.version,info.flags,info.partition_bytes,info.staged_bytes,info.image_bytes);}
  else if(!strcmp(v[2],"boot-begin")&&n==5){struct boot_begin b={0};if(number(v[3],&b.image_bytes)||digest(v[4],b.sha256))err=22;else{boot_reset();err=bootopen();if(!err&&ioctl(bootfd,BEGIN,&b)<0)err=ERRNO;if(!err){expected_image_bytes=b.image_bytes;snprintf(detail,sizeof(detail),"offset=0");}else boot_reset();}}
  else if(!strcmp(v[2],"boot-data")&&n==5){u64 off=0;unsigned char data[384];int count=decode(v[4],data);if(number(v[3],&off)||off!=staged||count<1)err=22;else if(bootfd<0)err=9;else if(upload_broken||!expected_image_bytes||staged>expected_image_bytes||(u64)count>expected_image_bytes-staged)err=22;else{int at=0;while(at<count){ssize_t k=write(bootfd,data+at,(size_t)(count-at));if(k<=0){err=k<0?ERRNO:5;upload_broken=1;break;}at+=(int)k;staged+=(u64)k;}if(!err)snprintf(detail,sizeof(detail),"offset=%llu",staged);}}

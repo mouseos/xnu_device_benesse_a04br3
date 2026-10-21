@@ -45,7 +45,18 @@ no unbounded restart loop. The supervisor never opens the boot updater.
 Terminal configuration must succeed before READY, including on re-open.
 Canonical line input is retained, echo and software flow control are off,
 BREAK is ignored, and ISIG/IEXTEN are off. Ctrl-T ttyinfo is consequently
-disabled for this console.
+disabled for this console. Use the explicit root console command instead:
+
+```
+python3 tools/uart_client.py --uart /dev/ttyUSB0 --raw-log /path/to/uart.log sample
+```
+
+This issues Darwin TIOCSTAT without changing terminal flags or sending control
+characters. On A04BR3, root TIOCSTAT also queues the existing sampling worker.
+The ACK only confirms the tty ioctl, not completion of a snapshot. The worker
+must be enabled with `a04br3.sample_uart=1` and retains its 10-second rate limit,
+16 manual requests and finite lifetime. Confirm `A04BR3_SAMPLE begin/end` in the
+collector log. Both console and supervisor are included by process name.
 
 An unfinished upload does not survive console death. Only the console owns
 its boot fd; process exit closes it and the kernel last-close path discards

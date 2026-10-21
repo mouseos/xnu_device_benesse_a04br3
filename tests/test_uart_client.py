@@ -213,7 +213,7 @@ class UARTClientTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 uart.request_line(rid, 'status', ())
         for command, args in [('exec', ('relative',)), ('exec', ('/bin/sh', 'a b')),
-                              ('exec', ('/bin/sh', '"arg"')), ('status', ('x',)),
+                              ('exec', ('/bin/sh', '"arg"')), ('status', ('x',)), ('sample', ('x',)),
                               ('boot-data', ('0', base64.b64encode(b'x' * 385).decode())),
                               ('boot-begin', ('1', 'bad')), ('boot-data', ('-1', 'eA=='))]:
             with self.assertRaises(ValueError):
@@ -251,9 +251,10 @@ class UARTClientTests(unittest.TestCase):
         with mock.patch.object(uart.os, 'open', side_effect=open_fd), \
              mock.patch.object(uart, 'write_all', side_effect=write_fd), \
              mock.patch('sys.stdout', new_callable=io.StringIO):
-            self.assertEqual(uart.main(['--uart', str(uart_path), '--raw-log', str(sim.raw_path),
-                                        '--log', str(log), 'status']), 0)
-        self.assertEqual(flags_seen, [os.O_WRONLY | os.O_NOCTTY])
+            for command in ('status', 'sample'):
+                self.assertEqual(uart.main(['--uart', str(uart_path), '--raw-log', str(sim.raw_path),
+                                            '--log', str(log), command]), 0)
+        self.assertEqual(flags_seen, [os.O_WRONLY | os.O_NOCTTY] * 2)
         self.assertEqual(uart_path.read_bytes(), b'')
         self.assertTrue(log.read_text())
 

@@ -26,7 +26,7 @@ DEFAULT_LOG = ROOT / 'gsi/logs/ios-feasibility/self-update/uart-client.jsonl'
 ID_RE = re.compile(r'[A-Za-z0-9]{1,32}\Z')
 REPLY_RE = re.compile(rb'!A04 ([A-Za-z0-9]{1,32}) (OK|ERR)(?: ([\x20-\x7e]*))?\r*\n\Z')
 NEXT_RE = re.compile(r'(?:(?:next|offset)[= ])?([0-9]+)\Z')
-COMMANDS = {'status', 'boot-begin', 'boot-data', 'boot-commit', 'boot-abort', 'reboot', 'exec'}
+COMMANDS = {'status', 'sample', 'boot-begin', 'boot-data', 'boot-commit', 'boot-abort', 'reboot', 'exec'}
 
 
 class ProtocolError(RuntimeError):
@@ -101,7 +101,7 @@ def request_line(request_id, command, args):
     for arg in args:
         if not arg or any(ord(c) < 33 or ord(c) > 126 or c in '\"\'\\' for c in arg):
             raise ValueError('arguments must be unquoted printable ASCII tokens')
-    if command in {'status', 'boot-commit', 'boot-abort', 'reboot'} and args:
+    if command in {'status', 'sample', 'boot-commit', 'boot-abort', 'reboot'} and args:
         raise ValueError('command takes no arguments')
     if command == 'exec' and (not args or not args[0].startswith('/')):
         raise ValueError('exec requires an absolute path')
@@ -238,7 +238,7 @@ def main(argv=None):
     parser.add_argument('--timeout', type=float, default=5.0)
     parser.add_argument('--retries', type=int, default=2)
     sub = parser.add_subparsers(dest='command', required=True)
-    for name in ('status', 'boot-abort', 'reboot'):
+    for name in ('status', 'sample', 'boot-abort', 'reboot'):
         sub.add_parser(name)
     execute = sub.add_parser('exec')
     execute.add_argument('path')

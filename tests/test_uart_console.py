@@ -15,15 +15,20 @@ class Console(unittest.TestCase):
 #include <errno.h>
 int *__error(void){return &errno;}
 static unsigned writes,begins,commits,closes;static int commit_error,write_error,short_write;
+static unsigned samples;static int sample_error;
 int mockopen(const char*p,int f,...){(void)p;(void)f;return 9;}
 int mockclose(int fd){assert(fd==9);closes++;return 0;}
 ssize_t mockwrite(int fd,const void*p,size_t n){assert(fd==9);assert(n<=4);(void)p;writes++;if(write_error){errno=5;return -1;}if(short_write){short_write=0;write_error=1;return 2;}return (ssize_t)n;}
-int mockioctl(int fd,unsigned long cmd,...){assert(fd==9);va_list ap;va_start(ap,cmd);void*p=va_arg(ap,void*);va_end(ap);
+int mockioctl(int fd,unsigned long cmd,...){if(cmd==0x20007465UL){assert(fd==0);samples++;if(sample_error){errno=25;return -1;}return 0;}assert(fd==9);va_list ap;va_start(ap,cmd);void*p=va_arg(ap,void*);va_end(ap);
  if(cmd==BEGIN){struct boot_begin*b=p;assert(b->image_bytes==4);begins++;return 0;}
  if(cmd==INFO){struct boot_info*b=p;b->version=1;b->partition_bytes=128*1024*1024;return 0;}
  if(cmd==COMMIT){commits++;if(commit_error){errno=5;return -1;}return 0;}
  return 0;}
 int main(void){char r[512];
+ command("@A04 sample1 sample",r);assert(samples==1&&strstr(r,"tty-status-requested")&&bootfd==-1);
+ command("@A04 sample1 sample",r);assert(samples==1); /* exact retry cannot duplicate request */
+ command("@A04 sample2 sample extra",r);assert(samples==1&&strstr(r,"ERR 22"));
+ sample_error=1;command("@A04 sample3 sample",r);assert(samples==2&&strstr(r,"ERR 25"));
  command("@A04 a boot-begin 4 0000000000000000000000000000000000000000000000000000000000000000",r);assert(begins==1);
  command("@A04 a boot-begin 4 0000000000000000000000000000000000000000000000000000000000000000",r);assert(begins==1);
  command("@A04 a boot-abort",r);assert(strstr(r,"ERR 22"));
