@@ -3,6 +3,7 @@
  * No donor binary patches. PID1 always execs native /sbin/launchd, even if
  * console fork fails. Only the explicit boot-commit command changes boot.
  */
+#include <sys/wait.h>
 typedef unsigned long size_t;
 typedef long ssize_t;
 typedef unsigned int u32;
@@ -24,7 +25,8 @@ struct boot_info {u32 version,flags;u64 partition_bytes,staged_bytes,image_bytes
 struct boot_begin {u64 image_bytes;unsigned char sha256[32];u64 reserved;};
 _Static_assert(sizeof(struct boot_info)==32 && sizeof(struct boot_begin)==48,"boot update ABI");
 static int bootfd=-1;
-static u64 staged;
+static u64 staged,expected_image_bytes;
+static int upload_broken;
 static char last_line[1024],last_reply[512],last_id[33];
 static const char alphabet[]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 static int say(const char *s){size_t n=strlen(s);while(n){ssize_t k=write(1,s,n);if(k<=0)return -1;s+=k;n-=(size_t)k;}return 0;}
@@ -42,6 +44,7 @@ static int decode(const char *s,unsigned char out[384]){
 }
 static int tokens(char *s,char **v,int max){int n=0;while(*s){while(*s==' '||*s=='\t')s++;if(!*s)break;if(n==max)return -1;v[n++]=s;while(*s&&*s!=' '&&*s!='\t')s++;if(*s)*s++=0;}return n;}
 static int identifier(const char *s){size_t n=strlen(s);if(!n||n>32)return 0;for(size_t i=0;i<n;i++)if(!((s[i]>='a'&&s[i]<='z')||(s[i]>='A'&&s[i]<='Z')||(s[i]>='0'&&s[i]<='9')))return 0;return 1;}
+static void boot_reset(void){if(bootfd>=0)close(bootfd);bootfd=-1;staged=expected_image_bytes=0;upload_broken=0;}
 static int bootopen(void){if(bootfd<0)bootfd=open("/dev/a04boot",1);return bootfd<0?ERRNO:0;}
 /* Returns 1 only for an explicit reboot request, after its ACK is written. */
 static int command(const char *line,char reply[512]){
@@ -52,17 +55,45 @@ static int command(const char *line,char reply[512]){
  int err=0,restart=0;char detail[320]="";
  if(!strcmp(v[2],"help")&&n==3)snprintf(detail,sizeof(detail),"status boot-begin boot-data boot-commit boot-abort reboot exec");
  else if(!strcmp(v[2],"status")&&n==3){struct boot_info info={0};err=bootopen();if(!err&&ioctl(bootfd,INFO,&info)<0)err=ERRNO;if(!err)snprintf(detail,sizeof(detail),"version=%u flags=%u partition=%llu staged=%llu image=%llu",info.version,info.flags,info.partition_bytes,info.staged_bytes,info.image_bytes);}
- else if(!strcmp(v[2],"boot-begin")&&n==5){struct boot_begin b={0};if(number(v[3],&b.image_bytes)||digest(v[4],b.sha256))err=22;else{if(bootfd>=0){close(bootfd);bootfd=-1;}err=bootopen();if(!err&&ioctl(bootfd,BEGIN,&b)<0)err=ERRNO;if(!err){staged=0;snprintf(detail,sizeof(detail),"offset=0");}}}
- else if(!strcmp(v[2],"boot-data")&&n==5){u64 off=0;unsigned char data[384];int count=decode(v[4],data);if(number(v[3],&off)||off!=staged||count<1)err=22;else if(bootfd<0)err=9;else{int at=0;while(at<count){ssize_t k=write(bootfd,data+at,(size_t)(count-at));if(k<=0){err=k<0?ERRNO:5;break;}at+=(int)k;staged+=(u64)k;}if(!err)snprintf(detail,sizeof(detail),"offset=%llu",staged);}}
- else if(!strcmp(v[2],"boot-commit")&&n==3){if(bootfd<0)err=9;else if(ioctl(bootfd,COMMIT,0)<0)err=ERRNO;else snprintf(detail,sizeof(detail),"boot-write-verified");}
- else if(!strcmp(v[2],"boot-abort")&&n==3){if(bootfd>=0){if(ioctl(bootfd,ABORT,0)<0)err=ERRNO;close(bootfd);bootfd=-1;}staged=0;}
+ else if(!strcmp(v[2],"boot-begin")&&n==5){struct boot_begin b={0};if(number(v[3],&b.image_bytes)||digest(v[4],b.sha256))err=22;else{boot_reset();err=bootopen();if(!err&&ioctl(bootfd,BEGIN,&b)<0)err=ERRNO;if(!err){expected_image_bytes=b.image_bytes;snprintf(detail,sizeof(detail),"offset=0");}else boot_reset();}}
+ else if(!strcmp(v[2],"boot-data")&&n==5){u64 off=0;unsigned char data[384];int count=decode(v[4],data);if(number(v[3],&off)||off!=staged||count<1)err=22;else if(bootfd<0)err=9;else if(upload_broken||!expected_image_bytes||staged>expected_image_bytes||(u64)count>expected_image_bytes-staged)err=22;else{int at=0;while(at<count){ssize_t k=write(bootfd,data+at,(size_t)(count-at));if(k<=0){err=k<0?ERRNO:5;upload_broken=1;break;}at+=(int)k;staged+=(u64)k;}if(!err)snprintf(detail,sizeof(detail),"offset=%llu",staged);}}
+ else if(!strcmp(v[2],"boot-commit")&&n==3){if(bootfd<0)err=9;else if(upload_broken||!expected_image_bytes||staged!=expected_image_bytes)err=22;else if(ioctl(bootfd,COMMIT,0)<0){err=ERRNO;upload_broken=1;}else snprintf(detail,sizeof(detail),"boot-write-verified");}
+ else if(!strcmp(v[2],"boot-abort")&&n==3){if(bootfd>=0){if(ioctl(bootfd,ABORT,0)<0)err=ERRNO;}boot_reset();}
  else if(!strcmp(v[2],"reboot")&&n==3){sync();snprintf(detail,sizeof(detail),"restarting");restart=1;}
- else if(!strcmp(v[2],"exec")&&n>=4&&v[3][0]=='/'){v[n]=0;int pid=fork();if(pid<0)err=ERRNO;else if(!pid){execv(v[3],&v[3]);_exit(127);}else{int status=0;if(waitpid(pid,&status,0)<0)err=ERRNO;else snprintf(detail,sizeof(detail),"wait-status=%d",status);}}
+ else if(!strcmp(v[2],"exec")&&n>=4&&v[3][0]=='/'){v[n]=0;int pid=fork();if(pid<0)err=ERRNO;else if(!pid){boot_reset();execv(v[3],&v[3]);_exit(127);}else{int status=0;if(waitpid(pid,&status,0)<0)err=ERRNO;else snprintf(detail,sizeof(detail),"wait-status=%d",status);}}
  else err=22;
  snprintf(reply,512,"\n!A04 %s %s %s",v[1],err?"ERR":"OK",err?"":detail);
  if(err){size_t at=strlen(reply);snprintf(reply+at,512-at,"%d",err);}
  size_t at=strlen(reply);if(at+1<512){reply[at]='\n';reply[at+1]=0;}
  memcpy(last_id,v[1],strlen(v[1])+1);memcpy(last_line,line,len+1);memcpy(last_reply,reply,strlen(reply)+1);return restart;
+}
+/* This process never opens /dev/a04boot. Only its child owns staging fds,
+ * so child exit drops the last updater reference and the kernel discards the
+ * upload. Every replacement is forked from this untouched protocol state. */
+static int supervise_console(void (*run_console)(void)){
+ (void)setsid();
+ for(unsigned attempt=0;attempt<4;attempt++){
+  int pid=fork();if(pid<0){say("\nA04BR3_CONSOLE supervisor fork failed\n");return 125;}
+  if(!pid){run_console();_exit(125);}
+  int status=0,got;
+  do{got=waitpid(pid,&status,0);}while(got<0&&ERRNO==4);
+  if(got!=pid){say("\nA04BR3_CONSOLE supervisor wait failed\n");return 126;}
+  char message[160];snprintf(message,sizeof(message),
+   "\nA04BR3_CONSOLE child exit attempt=%u wait-status=%d; upload discarded, full BEGIN required\n",attempt+1,status);say(message);
+  /* Permanent setup/open/dup errors, successful exit and unknown exit codes
+   * stop. Signals (including SIGINT) and exhausted input recovery may retry. */
+  int retry=WIFSIGNALED(status)||(WIFEXITED(status)&&WEXITSTATUS(status)==122);
+  if(!retry)return WIFEXITED(status)?WEXITSTATUS(status):126;
+  if(attempt==3){say("\nA04BR3_CONSOLE supervisor restart limit reached\n");return 127;}
+  sleep(2u<<attempt);
+ }
+ return 127;
+}
+static void launch_native_with_console(void (*run_console)(void)){
+ int pid=fork();if(!pid)_exit(supervise_console(run_console));
+ /* Failure to create the supervisor must never prevent native PID1. */
+ char *args[]={"/sbin/launchd",0};execv(args[0],args);
+ say("A04BR3_CONSOLE native launchd exec failed\n");_exit(123);
 }
 #ifndef A04_CONSOLE_TEST
 #include <termios.h>
@@ -88,12 +119,12 @@ static void console(void){
    snprintf(message,sizeof(message),"\nA04BR3_CONSOLE input recovery=%u read=%ld errno=%d\n",++recoveries,(long)n,error);say(message);
    if(recoveries>60)_exit(122);sleep(1);
    int replacement=open("/dev/console",2);if(replacement<0)continue;
-   if(configure_uart(replacement)){close(replacement);continue;}(void)ioctl(replacement,0x20007461UL,0);int group=getpid();(void)ioctl(replacement,0x80047476UL,&group);
-   for(int j=0;j<3;j++)(void)dup2(replacement,j);if(replacement>2)close(replacement);continue;}if(c=='\r'||c=='\n'){if(!overflow&&at){line[at]=0;reply[0]=0;int restart=command(line,reply);if(reply[0])say(reply);if(restart){sync();if(reboot(0)<0)say("\nA04BR3_CONSOLE reboot failed\n");}}at=0;overflow=0;}else if(!overflow){if(at+1<sizeof(line))line[at++]=c;else overflow=1;}}
+   if(configure_uart(replacement)){close(replacement);_exit(124);}(void)ioctl(replacement,0x20007461UL,0);int group=getpid();(void)ioctl(replacement,0x80047476UL,&group);
+   for(int j=0;j<3;j++)if(dup2(replacement,j)<0)_exit(121);if(replacement>2)close(replacement);continue;}if(c=='\r'||c=='\n'){if(!overflow&&at){line[at]=0;reply[0]=0;int restart=command(line,reply);if(reply[0])say(reply);if(restart){sync();if(reboot(0)<0)say("\nA04BR3_CONSOLE reboot failed\n");}}at=0;overflow=0;}else if(!overflow){if(at+1<sizeof(line))line[at++]=c;else overflow=1;}}
 }
 int main(int argc,char **argv){
  (void)argc;(void)argv;
- if(getpid()==1){int pid=fork();if(!pid)console();char *args[]={"/sbin/launchd",0};execv(args[0],args);say("A04BR3_CONSOLE native launchd exec failed\n");_exit(123);}
+ if(getpid()==1)launch_native_with_console(console);
  console();return 0;
 }
 #endif
