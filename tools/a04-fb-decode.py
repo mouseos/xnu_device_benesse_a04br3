@@ -12,6 +12,7 @@ import re
 import stat
 import struct
 import sys
+import tempfile
 import zlib
 
 HEADER=b'P6\n200 320\n255\n'
@@ -71,7 +72,7 @@ def decode_chunks(chunks,frame_id):
     if not complete:raise CaptureError('no complete selected frame')
     return bytes(image)
 
-def decode_log(path,frame_id,start_offset=0):
+def decode_log(path,frame_id,start_offset=0,expected_identity=None):
     path=Path(path)
     if start_offset<0 or not stat.S_ISREG(path.stat().st_mode):raise CaptureError('input must be a regular collector log')
     flags=os.O_RDONLY|os.O_NONBLOCK|getattr(os,'O_NOFOLLOW',0)
@@ -79,6 +80,8 @@ def decode_log(path,frame_id,start_offset=0):
     with os.fdopen(fd,'rb') as stream:
         info=os.fstat(stream.fileno())
         if not stat.S_ISREG(info.st_mode) or start_offset>info.st_size:raise CaptureError('invalid regular log/baseline')
+        if expected_identity is not None and (info.st_dev,info.st_ino)!=expected_identity:
+            raise CaptureError('collector log replaced before decode')
         # A fixed finite snapshot: appending collector output never prolongs this call.
         stream.seek(start_offset);remaining=info.st_size-start_offset
         def chunks():
@@ -96,6 +99,20 @@ def png_from_ppm(ppm):
     def chunk(kind,data):return struct.pack('>I',len(data))+kind+data+struct.pack('>I',zlib.crc32(kind+data)&0xffffffff)
     return b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',200,320,8,2,0,0,0))+chunk(b'IDAT',zlib.compress(raw))+chunk(b'IEND',b'')
 
+def publish_image(path,data):
+    """Publish a fully verified image atomically, without replacing any name."""
+    path=Path(path)
+    fd,name=tempfile.mkstemp(prefix='.'+path.name+'.',suffix='.tmp',dir=path.parent)
+    try:
+        with os.fdopen(fd,'wb') as output:
+            output.write(data)
+            output.flush()
+            os.fsync(output.fileno())
+        # Same-directory hard link is atomic and fails if the destination exists.
+        os.link(name,path)
+    finally:
+        os.unlink(name)
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--log',type=Path,required=True)
@@ -107,12 +124,8 @@ def main():
     try:
         ppm=decode_log(args.log,args.frame_id,args.start_offset)
         data=png_from_ppm(ppm) if args.format=='png' else ppm
-        # No output file is created until the entire frame verifies. Never overwrite.
-        fd=os.open(args.output,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
-        try:
-            with os.fdopen(fd,'wb') as output:output.write(data)
-        except BaseException:
-            args.output.unlink(missing_ok=True);raise
+        # No final filename exists until all bytes verify and finish writing.
+        publish_image(args.output,data)
         print(f'A04FB verified frame={args.frame_id} width=200 height=320 sha256={hashlib.sha256(ppm).hexdigest()} output={args.output}')
         return 0
     except (CaptureError,OSError) as error:

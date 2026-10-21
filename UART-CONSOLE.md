@@ -79,13 +79,33 @@ checks do not establish hardware recovery or recovery from a kernel hang,
 power loss during COMMIT, or a candidate that fails before the console.
 
 Framebuffer observations prefer the source-built helper installed at
-`/usr/appleinternal/sbin/a04-fb-capture`. Record the collector byte offset and
-a fresh 32-character lowercase hexadecimal frame id before running:
+`/usr/appleinternal/sbin/a04-fb-capture`. Once a working console and this
+helper are installed, the host can retrieve a preview without tablet input:
 
 ```
-python3 tools/uart_client.py --uart /dev/ttyUSB0 --raw-log /path/to/uart.log --timeout 60 exec /usr/appleinternal/sbin/a04-fb-capture --uart-preview FRAMEID
-python3 tools/a04-fb-decode.py --log /path/to/uart.log --frame-id FRAMEID --start-offset BASELINE --output /absolute/new-screen.png
+python3 tools/a04-fb-retrieve.py --uart /dev/ttyUSB0 --raw-log /path/to/existing-collector.log --output /absolute/new-screen.png --timeout 120
 ```
+
+The wrapper records a fresh frame id, request id, collector inode and byte
+baseline in `OUTPUT.capture.jsonl` **before** sending. It sends exactly one
+`exec` request; automatic retransmission is disabled. Its finite deadline
+includes nonblocking paced TX and ACK waiting, polling the existing collector
+file at most about five times per second while idle. It never reads the UART,
+changes termios, starts a collector, writes boot, reboots, or invokes a camera.
+The exec ACK must contain `wait-status=0`; the ACK alone is insufficient.
+The complete frame must verify before a PNG is written to a private temporary
+file, flushed, and atomically linked to the new final filename. Existing files
+are never overwritten, including a destination created during transfer.
+Timeout/failure retains the identity record so a later completed collector
+frame can be decoded without sending another exec:
+
+```
+python3 tools/a04-fb-decode.py --log /path/to/existing-collector.log --frame-id RECORDED_FRAME_ID --start-offset RECORDED_BASELINE --output /absolute/another-new-screen.png
+```
+
+A timeout does not kill a still-running device capture. Do not blindly reissue
+it; inspect the recorded frame and console completion first. The required
+collector must already preserve UART bytes in a regular append-only log.
 
 The helper reads only the actual 800x1280 panel surface returned by the board
 framebuffer, validates its geometry and BGRA layout, and sends a 200x320
