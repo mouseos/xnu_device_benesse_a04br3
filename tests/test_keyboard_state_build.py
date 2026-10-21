@@ -43,7 +43,8 @@ sys.exit(1 if os.environ['TOOL_FAIL']==step else 0)
                 calls=[json.loads(line) for line in log.read_text().splitlines()]
                 if failure=='none':
                     self.assertEqual(result.returncode,0,result.stderr)
-                    self.assertEqual(calls[-2][0:6],['codesign','--force','--sign','-','--timestamp=none',calls[-2][-1]])
+                    self.assertEqual(calls[-2],['codesign','--force','--sign','-',
+                        '--timestamp=none','--identifier','org.mouseos.a04br3.keyboard-state',calls[-2][-1]])
                     self.assertEqual(calls[-1][0:3],['codesign','--verify','--strict'])
                     self.assertEqual(calls[-1][-1],calls[-2][-1])
                     compile=calls[1];self.assertIn('arm64-apple-ios16.0',compile)

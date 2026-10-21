@@ -11,7 +11,8 @@ ios_sdk=$(xcrun --sdk iphoneos --show-sdk-path)
 xcrun --sdk iphoneos clang -isysroot "$ios_sdk" -target arm64-apple-ios16.0 -mcpu=cortex-a35 \
     -std=c11 -O2 -Wall -Wextra -Werror \
     "$src/a04br3_keyboard_state.c" -o "$build_tmp"
-codesign --force --sign - --timestamp=none "$build_tmp"
+codesign --force --sign - --timestamp=none \
+    --identifier org.mouseos.a04br3.keyboard-state "$build_tmp"
 codesign --verify --strict "$build_tmp"
 mv -f "$build_tmp" "$out"
 shasum -a 256 "$src/a04br3_keyboard_state.c" "$src/a04br3_keyboard_state_sources.json" \
