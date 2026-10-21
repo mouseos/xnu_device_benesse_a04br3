@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "c0349316bc1f13b3ac4d9b1e63a05051670a23f5",
-    "role": "iPad tablet product, MT6630 WMT transport, inert GPU memory reservation"
+    "commit": "7ce4a65b28b0a0097f4f496c0043958cb3701154",
+    "role": "native tablet cache regeneration, MT6630 revision queries, CPU-only GPU firmware staging"
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
