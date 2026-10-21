@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "40907a9ef0371ed0c1e332f2c821c6841531aaba",
-    "role": "MT6630 AIS v2 active/passive scan, full observed native results and real completion events; cold Rogue context UPDATE/KICK hardware validation pending"
+    "commit": "7fe9b8f6b2ec45dc7b6938c243915999c279f0cf",
+    "role": "Real IONetworkStack BSD registration for MT6630; observed native scan; source-native GP KickSync verification (hardware pending), no rendering acceleration"
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
