@@ -72,7 +72,7 @@ Framebuffer observations prefer the source-built helper installed at
 a fresh 32-character lowercase hexadecimal frame id before running:
 
 ```
-python3 tools/uart_client.py --uart /dev/ttyUSB0 --raw-log /path/to/uart.log exec /usr/appleinternal/sbin/a04-fb-capture --uart-preview FRAMEID
+python3 tools/uart_client.py --uart /dev/ttyUSB0 --raw-log /path/to/uart.log --timeout 60 exec /usr/appleinternal/sbin/a04-fb-capture --uart-preview FRAMEID
 python3 tools/a04-fb-decode.py --log /path/to/uart.log --frame-id FRAMEID --start-offset BASELINE --output /absolute/new-screen.png
 ```
 

@@ -20,19 +20,14 @@ typedef uint32_t mach_port_t;typedef int kern_return_t;
 extern mach_port_t mach_task_self(void);
 extern kern_return_t mach_port_deallocate(mach_port_t,mach_port_t);
 typedef const void *CFDictionaryRef;typedef void *CFMutableDictionaryRef;
+typedef uint32_t OSType;
 extern void CFRelease(const void *);
-typedef struct FakeSurface *IOSurfaceRef;
-enum {kIOSurfaceLockReadOnly=1};
-extern IOSurfaceRef IOSurfaceLookupFromMachPort(mach_port_t);
-extern size_t IOSurfaceGetWidth(IOSurfaceRef),IOSurfaceGetHeight(IOSurfaceRef),IOSurfaceGetBytesPerRow(IOSurfaceRef),IOSurfaceGetBytesPerElement(IOSurfaceRef),IOSurfaceGetAllocSize(IOSurfaceRef);
-extern uint32_t IOSurfaceGetPixelFormat(IOSurfaceRef);
-extern void *IOSurfaceGetBaseAddress(IOSurfaceRef);
-extern kern_return_t IOSurfaceLock(IOSurfaceRef,uint32_t,uint32_t *),IOSurfaceUnlock(IOSurfaceRef,uint32_t,uint32_t *);
 '''
 
 def public_stubs(p):
+    # Deliberately NO IOSurface framework headers: mirror failing iPhone SDK.
     (p/'public.h').write_text(PUBLIC_STUB)
-    for name in ['CoreFoundation/CoreFoundation.h','IOSurface/IOSurface.h','mach/mach.h']:
+    for name in ['CoreFoundation/CoreFoundation.h','mach/mach.h']:
         f=p/name;f.parent.mkdir(parents=True,exist_ok=True);f.write_text('#include "public.h"\n')
 
 class FBCapture(unittest.TestCase):
@@ -64,7 +59,7 @@ static void capture_free(void *);
 #undef free
 static unsigned mode,locks,unlocks,releases,connections,services,ports,allocations,writes,delays;
 static unsigned char *frame;
-struct FakeSurface {int unused;};static struct FakeSurface surface;
+struct __IOSurface {int unused;};static struct __IOSurface surface;
 static void *capture_malloc(size_t n){assert(n==A04_FB_BYTES || n==256000 || n==192015);if(mode==23 || (mode==30 && n==192015))return NULL;++allocations;return malloc(n);}
 static void capture_free(void *p){if(p){assert(allocations);--allocations;free(p);}}
 static ssize_t capture_write(int fd,const void *p,size_t n){
@@ -94,10 +89,10 @@ size_t IOSurfaceGetHeight(IOSurfaceRef s){assert(s==&surface);return mode==9?127
 size_t IOSurfaceGetBytesPerRow(IOSurfaceRef s){assert(s==&surface);return mode==10?3199:3200;}
 size_t IOSurfaceGetBytesPerElement(IOSurfaceRef s){assert(s==&surface);return mode==12?3:4;}
 size_t IOSurfaceGetAllocSize(IOSurfaceRef s){assert(s==&surface);return mode==13?A04_FB_BYTES-1:A04_FB_BYTES;}
-uint32_t IOSurfaceGetPixelFormat(IOSurfaceRef s){assert(s==&surface);return mode==11?0x52474241:A04_FB_BGRA;}
+OSType IOSurfaceGetPixelFormat(IOSurfaceRef s){assert(s==&surface);return mode==11?0x52474241:A04_FB_BGRA;}
 void *IOSurfaceGetBaseAddress(IOSurfaceRef s){assert(s==&surface && locks);return mode==15?NULL:(mode==32?frame+1:(mode==16?(void*)(UINTPTR_MAX-31):frame));}
-kern_return_t IOSurfaceLock(IOSurfaceRef s,uint32_t flags,uint32_t *seed){assert(s==&surface && flags==1 && !locks);if(mode==14)return 1;*seed=73;++locks;return 0;}
-kern_return_t IOSurfaceUnlock(IOSurfaceRef s,uint32_t flags,uint32_t *seed){assert(s==&surface && flags==1 && *seed==73 && locks==1);--locks;++unlocks;return mode==17?1:0;}
+kern_return_t IOSurfaceLock(IOSurfaceRef s,IOSurfaceLockOptions flags,uint32_t *seed){assert(s==&surface && flags==1 && !locks);if(mode==14)return 1;*seed=73;++locks;return 0;}
+kern_return_t IOSurfaceUnlock(IOSurfaceRef s,IOSurfaceLockOptions flags,uint32_t *seed){assert(s==&surface && flags==1 && *seed==73 && locks==1);--locks;++unlocks;return mode==17?1:0;}
 void CFRelease(const void *s){assert(s==&surface && !locks);++releases;
  assert(!mprotect(frame,A04_FB_BYTES,PROT_READ|PROT_WRITE));memset(frame,0,A04_FB_BYTES); // Original backing changes before slow output.
 }
@@ -145,6 +140,32 @@ int main(int argc,char **argv){
                 elif mode==19:self.assertEqual(output.read_bytes(),b'keep-existing')
                 else:self.assertFalse(output.exists(),f'mode{mode} left partial output')
 
+    def test_apple_public_abi_with_no_iosurface_sdk_headers(self):
+        source=r"""
+#define A04_FB_DECLARE_IOSURFACE 1
+#include "a04-fb-capture.h"
+#define ABI_CHECK(name,type) _Static_assert(__builtin_types_compatible_p(__typeof__(&(name)),type),#name " Apple C ABI")
+_Static_assert(__builtin_types_compatible_p(IOSurfaceRef,struct __IOSurface *),"opaque IOSurfaceRef");
+_Static_assert(__builtin_types_compatible_p(IOSurfaceLockOptions,uint32_t),"CF_OPTIONS uint32_t");
+_Static_assert(kIOSurfaceLockReadOnly==0x00000001,"Apple readonly option");
+ABI_CHECK(IOSurfaceLookupFromMachPort,IOSurfaceRef (*)(mach_port_t));
+ABI_CHECK(IOSurfaceLock,kern_return_t (*)(IOSurfaceRef,IOSurfaceLockOptions,uint32_t *));
+ABI_CHECK(IOSurfaceUnlock,kern_return_t (*)(IOSurfaceRef,IOSurfaceLockOptions,uint32_t *));
+ABI_CHECK(IOSurfaceGetWidth,size_t (*)(IOSurfaceRef));
+ABI_CHECK(IOSurfaceGetHeight,size_t (*)(IOSurfaceRef));
+ABI_CHECK(IOSurfaceGetBytesPerRow,size_t (*)(IOSurfaceRef));
+ABI_CHECK(IOSurfaceGetBytesPerElement,size_t (*)(IOSurfaceRef));
+ABI_CHECK(IOSurfaceGetAllocSize,size_t (*)(IOSurfaceRef));
+ABI_CHECK(IOSurfaceGetBaseAddress,void *(*)(IOSurfaceRef));
+ABI_CHECK(IOSurfaceGetPixelFormat,OSType (*)(IOSurfaceRef));
+"""
+        with tempfile.TemporaryDirectory() as d:
+            p=Path(d);public_stubs(p);(p/'abi.c').write_text(source)
+            self.assertFalse((p/'IOSurface').exists())
+            for target in ([],['--target=arm64-apple-ios16.0','-ffreestanding']):
+                subprocess.run(['clang',*target,'-std=c11','-Wall','-Wextra','-Werror','-I',str(p),'-I',str(TOOLS),
+                                '-c',str(p/'abi.c'),'-o',str(p/'abi.o')],check=True)
+
     def test_bounded_conversion_and_original_arm64_target_compile(self):
         with tempfile.TemporaryDirectory() as d:
             p=Path(d);public_stubs(p)
@@ -165,7 +186,7 @@ int main(void){unsigned char src[3200],dst[2402];memset(src,0,3200);memset(dst,0
             subprocess.run(['clang','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',
                             '-I',str(TOOLS),str(p/'pure.c'),'-o',str(p/'pure')],check=True)
             subprocess.run([str(p/'pure')],check=True)
-            # Public-ABI stubs only; retain complete unmodified target source.
+            # CoreFoundation/mach stubs ONLY; no IOSurface headers supplied.
             # This target compile is not an actual Apple SDK link.
             (p/'errno.h').write_text('extern int *__error(void);\n#define errno (*__error())\n#define EINTR 4\n')
             (p/'fcntl.h').write_text('#define O_WRONLY 1\n#define O_CREAT 0x200\n#define O_EXCL 0x800\nextern int open(const char*,int,...);\n')

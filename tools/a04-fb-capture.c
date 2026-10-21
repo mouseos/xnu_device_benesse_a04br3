@@ -9,7 +9,6 @@
  * is a best-effort scanout copy, NOT an atomic hardware-latched screenshot.
  */
 #include <CoreFoundation/CoreFoundation.h>
-#include <IOSurface/IOSurface.h>
 #include <mach/mach.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -18,6 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#define A04_FB_DECLARE_IOSURFACE 1
 #include "a04-fb-capture.h"
 #include "a04-fb-capture-digest.h"
 /* Public IOKit C API; iPhone SDK exports the framework but may omit IOKitLib.h.
