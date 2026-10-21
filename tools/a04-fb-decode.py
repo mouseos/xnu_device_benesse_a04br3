@@ -19,32 +19,117 @@ HEADER=b'P6\n200 320\n255\n'
 FRAME_BYTES=len(HEADER)+200*320*3
 ID_RE=re.compile(r'[0-9a-f]{32}\Z')
 DATA_RE=re.compile(rb'DATA (0|[1-9][0-9]{0,5}) ([1-9][0-9]{0,2}) ([0-9a-f]{8}) ([A-Za-z0-9+/]+={0,2})\Z')
+DATA_HEADER_RE=re.compile(rb'DATA (0|[1-9][0-9]{0,5}) ([1-9][0-9]{0,2}) ([0-9a-f]{8}) (.*)\Z')
+BASE64_RE=re.compile(rb'[A-Za-z0-9+/]+={0,2}\Z')
+MAX_INTERLEAVED_LINES=32
+MAX_INTERLEAVED_BYTES=16384
+MAX_RECOVERED_CHUNKS=32
+MAX_RECOVERY_CANDIDATES=16384
 END_RE=re.compile(rb'END ([1-9][0-9]{0,5}) ([0-9a-f]{64})\Z')
 
 class CaptureError(ValueError):
     pass
 
-def bounded_lines(chunks,prefix):
-    pending=b'';discard=False
+def bounded_lines(chunks,prefix,*,report_sizes=False,max_line=1024):
+    pending=b'';discard=False;wire_size=0
     for chunk in chunks:
         while chunk:
             end=chunk.find(b'\n')
             piece=chunk if end<0 else chunk[:end]
+            wire_size+=len(piece)+(end>=0)
             if not discard:
-                if len(pending)+len(piece)>1024:
+                if len(pending)+len(piece)>max_line:
                     if (pending+piece).startswith(prefix):raise CaptureError('overlong selected record')
                     discard=True;pending=b''
                 elif end<0:pending+=piece
-                else:yield (pending+piece).rstrip(b'\r')
+                elif end>=0:
+                    line=(pending+piece).rstrip(b'\r')
+                    yield (line,wire_size) if report_sizes else line
             if end<0:break
-            pending=b'';discard=False;chunk=chunk[end+1:]
+            if discard and report_sizes:yield None,wire_size
+            pending=b'';discard=False;wire_size=0;chunk=chunk[end+1:]
     if pending.startswith(prefix):raise CaptureError('truncated selected record')
 
-def decode_chunks(chunks,frame_id):
+def recovered_lines(chunks,prefix):
+    """Normalize at most two insertions per DATA, using retained fragments only.
+
+    Each window ends BEFORE the next capture record (any frame ID). A candidate
+    is a first-line prefix, optionally ONE intermediate non-pure line's prefix,
+    and a later pure base64 continuation. Total length leaves only one prefix
+    cut to enumerate, with a fixed per-window candidate attempt limit. Lengths,
+    canonical encoding and CRC must agree; distinct CRC-valid bytes are rejected
+    even if END SHA would select one. Bounds include discarded log-line bytes.
+    The caller still verifies every offset/count and the original whole END SHA.
+    """
+    lines=iter(bounded_lines(chunks,prefix,report_sizes=True,max_line=MAX_INTERLEAVED_BYTES))
+    pending=None;recovered=0
+    while True:
+        try:line,size=pending if pending is not None else next(lines)
+        except StopIteration:return
+        pending=None
+        if line is None:continue
+        if not line.startswith(prefix):
+            yield line;continue
+        body=line[len(prefix):];header=DATA_HEADER_RE.fullmatch(body)
+        if not header:
+            yield line;continue  # BEGIN/END or a malformed header: strict decides.
+        count=int(header[2]);encoded_size=4*((count+2)//3)
+        if count>384 or (DATA_RE.fullmatch(body) and len(header[4])==encoded_size):
+            yield line;continue  # Never repair a complete payload's bad CRC/data.
+        if b'!A04FB1 ' in header[4]:raise CaptureError('unsupported embedded capture record')
+        recovered+=1
+        if recovered>MAX_RECOVERED_CHUNKS:raise CaptureError('interleaved chunk recovery limit')
+        candidates=set();window_bytes=size;window_lines=1;attempts=0;middles=[]
+        def consider(encoded):
+            nonlocal attempts
+            attempts+=1
+            if attempts>MAX_RECOVERY_CANDIDATES:raise CaptureError('interleaved candidate attempt limit')
+            try:block=base64.b64decode(encoded,validate=True)
+            except ValueError:return
+            if len(block)!=count or base64.b64encode(block)!=encoded:return
+            if zlib.crc32(block)&0xffffffff!=int(header[3],16):return
+            candidates.add(block)
+            if len(candidates)>1:raise CaptureError('ambiguous interleaved chunk bytes')
+        if window_bytes>MAX_INTERLEAVED_BYTES:raise CaptureError('interleaved byte limit')
+        for continuation,cost in lines:
+            if continuation is not None and continuation.startswith(b'!A04FB1 '):
+                pending=(continuation,cost);break
+            window_bytes+=cost;window_lines+=1
+            if window_bytes>MAX_INTERLEAVED_BYTES:raise CaptureError('interleaved byte limit')
+            if window_lines>MAX_INTERLEAVED_LINES:raise CaptureError('interleaved line limit')
+            if continuation is None:raise CaptureError('overlong interleaved log line')
+            if b'!A04FB1 ' in continuation:raise CaptureError('unsupported embedded capture record')
+            if not BASE64_RE.fullmatch(continuation):
+                # Do not combine multiple pure continuation lines. An inserted
+                # suffix must remain on every prefix-bearing line.
+                if continuation:middles.append(continuation)
+                continue
+            take=encoded_size-len(continuation)
+            # A nonempty suffix must remain on the first line as the inserted
+            # log fragment. No guessed bytes, whitespace stripping or padding.
+            if take<0:continue
+            if take<len(header[4]):consider(header[4][:take]+continuation)
+            for middle in middles:
+                # middle_take = take-first_take, both inserted suffixes nonempty.
+                # A middle contributes at least one retained byte; the two-part
+                # path above covers no intermediate fragment.
+                lo=max(0,take-(len(middle)-1))
+                hi=min(take-1,len(header[4])-1)
+                for first_take in range(lo,hi+1):
+                    middle_take=take-first_take
+                    consider(header[4][:first_take]+middle[:middle_take]+continuation)
+        else:
+            raise CaptureError('truncated interleaved window')
+        if not candidates:raise CaptureError(f'no CRC-valid interleaved chunk at offset {int(header[1])}')
+        block=candidates.pop()
+        yield line[:len(prefix)+header.start(4)]+base64.b64encode(block)
+
+def decode_chunks(chunks,frame_id,*,recover_interleaved=False):
     if not ID_RE.fullmatch(frame_id):raise CaptureError('frame ID must be 32 lowercase hex digits')
     prefix=b'!A04FB1 '+frame_id.encode()+b' '
     started=False;complete=False;image=bytearray()
-    for line in bounded_lines(chunks,prefix):
+    lines=recovered_lines(chunks,prefix) if recover_interleaved else bounded_lines(chunks,prefix)
+    for line in lines:
         if not line.startswith(prefix):continue  # Native logs/echo/other frame IDs.
         if complete:raise CaptureError('extra selected record after END (reused frame ID)')
         body=line[len(prefix):]
@@ -72,7 +157,7 @@ def decode_chunks(chunks,frame_id):
     if not complete:raise CaptureError('no complete selected frame')
     return bytes(image)
 
-def decode_log(path,frame_id,start_offset=0,expected_identity=None):
+def decode_log(path,frame_id,start_offset=0,expected_identity=None,*,recover_interleaved=False):
     path=Path(path)
     if start_offset<0 or not stat.S_ISREG(path.stat().st_mode):raise CaptureError('input must be a regular collector log')
     flags=os.O_RDONLY|os.O_NONBLOCK|getattr(os,'O_NOFOLLOW',0)
@@ -90,7 +175,7 @@ def decode_log(path,frame_id,start_offset=0,expected_identity=None):
                 block=stream.read(min(65536,remaining))
                 if not block:raise CaptureError('collector log truncated during decode')
                 remaining-=len(block);yield block
-        return decode_chunks(chunks(),frame_id)
+        return decode_chunks(chunks(),frame_id,recover_interleaved=recover_interleaved)
 
 def png_from_ppm(ppm):
     if len(ppm)!=FRAME_BYTES or not ppm.startswith(HEADER):raise CaptureError('invalid bounded P6 image')
@@ -120,9 +205,11 @@ def main():
     parser.add_argument('--start-offset',type=int,default=0,help='collector byte baseline before command')
     parser.add_argument('--output',type=Path,required=True)
     parser.add_argument('--format',choices=('png','ppm'),default='png')
+    parser.add_argument('--recover-interleaved',action='store_true',
+        help='opt in to bounded retained-fragment recovery; CRC and original END SHA still required')
     args=parser.parse_args()
     try:
-        ppm=decode_log(args.log,args.frame_id,args.start_offset)
+        ppm=decode_log(args.log,args.frame_id,args.start_offset,recover_interleaved=args.recover_interleaved)
         data=png_from_ppm(ppm) if args.format=='png' else ppm
         # No final filename exists until all bytes verify and finish writing.
         publish_image(args.output,data)

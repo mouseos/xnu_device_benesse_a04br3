@@ -9,6 +9,7 @@ before acknowledging boot-commit. Upload does not reboot by default.
 """
 import argparse
 import base64
+import fcntl
 import hashlib
 import json
 import math
@@ -28,6 +29,8 @@ DEFAULT_LOG = ROOT / 'gsi/logs/ios-feasibility/self-update/uart-client.jsonl'
 ID_RE = re.compile(r'[A-Za-z0-9]{1,32}\Z')
 REPLY_RE = re.compile(rb'!A04 ([A-Za-z0-9]{1,32}) (OK|ERR)(?: ([\x20-\x7e]*))?\r*\n\Z')
 NEXT_RE = re.compile(r'(?:(?:next|offset)[= ])?([0-9]+)\Z')
+STATUS_RE = re.compile(r'version=(0|[1-9][0-9]{0,19}) flags=(0|[1-9][0-9]{0,19}) partition=(0|[1-9][0-9]{0,19}) staged=(0|[1-9][0-9]{0,19}) image=(0|[1-9][0-9]{0,19})\Z')
+DATA_RECONCILE_RETRIES = 2
 COMMANDS = {'status', 'sample', 'boot-begin', 'boot-data', 'boot-commit', 'boot-abort', 'reboot', 'exec'}
 
 
@@ -39,8 +42,15 @@ class AckTimeout(ProtocolError):
     pass
 
 
-class RemoteError(ProtocolError):
+class TransmissionTimeout(AckTimeout):
+    """TX may be partial; never follow it with reconciliation commands."""
     pass
+
+
+class RemoteError(ProtocolError):
+    def __init__(self, message, *, code=None):
+        super().__init__(message)
+        self.code = code
 
 
 class ReplyParser:
@@ -161,10 +171,12 @@ class Client:
                         self.write(line)  # Injected transports must bound their own writes.
                     else:
                         self.write_deadline(line, deadline)
-                except (OSError, ProtocolError):
+                except (OSError, ProtocolError) as error:
                     # A partially transmitted canonical line must never be
                     # retried/concatenated automatically after a TX failure.
                     self.event(event='tx-failed', id=request_id, command=command)
+                    if isinstance(error, AckTimeout):
+                        raise TransmissionTimeout(str(error)) from error
                     raise
                 while True:
                     for reply_id, status, detail in self.parser.feed(self.read()):
@@ -172,7 +184,7 @@ class Client:
                             continue
                         self.event(event='reply', id=request_id, command=command, status=status)
                         if status == 'ERR':
-                            raise RemoteError(f'{command}: {detail}')
+                            raise RemoteError(f'{command}: {detail}', code=int(detail) if re.fullmatch(r'[0-9]{1,5}', detail) else None)
                         return detail
                     remaining = deadline - self.clock()
                     if remaining <= 0:
@@ -182,6 +194,45 @@ class Client:
             raise AckTimeout(f'{command}: no ACK after {retries + 1} transmission(s)')
         finally:
             self.lock.release()
+
+    def upload_block(self, block, offset, total):
+        """Reconcile bounded stage progress, never claim byte integrity here.
+
+        Only the kernel whole-image SHA/header/GPT checks before COMMIT writes
+        can verify the actual staged bytes, not an offset or a lost data ACK.
+        """
+        next_offset = offset + len(block)
+        encoded = base64.b64encode(block).decode('ascii')
+        for attempt in range(DATA_RECONCILE_RETRIES + 1):
+            try:
+                detail = self.request('boot-data', str(offset), encoded)
+            except TransmissionTimeout:
+                raise  # Sending status could concatenate a partially sent line.
+            except (AckTimeout, RemoteError) as error:
+                if isinstance(error, RemoteError) and error.code != 22:
+                    raise
+                detail = self.request('status')  # Read-only; fresh request ID.
+                match = STATUS_RE.fullmatch(detail)
+                if not match:
+                    raise ProtocolError('unrecognized staging status; upload not committed')
+                version, flags, partition, staged, image = map(int, match.groups())
+                if (version != 1 or flags != 1 or image != total or
+                        not total <= partition <= 0xffffffffffffffff or staged > total):
+                    raise ProtocolError('staging state/size mismatch; upload not committed')
+                if staged == next_offset:
+                    self.event(event='data-reconciled', offset=offset, next=next_offset,
+                               outcome='staged-unverified')
+                    return
+                if staged != offset:
+                    raise ProtocolError('ambiguous staging offset; upload not committed')
+                if attempt == DATA_RECONCILE_RETRIES:
+                    raise ProtocolError('staging retry limit; upload not committed')
+                self.event(event='data-reconcile-retry', offset=offset, attempt=attempt+1)
+                continue  # New request ID, identical block; bounded retries.
+            ack = NEXT_RE.fullmatch(detail)
+            if not ack or int(ack[1]) != next_offset:
+                raise ProtocolError('boot-data ACK does not match next byte offset')
+            return
 
     def upload(self, path, *, reboot=False):
         with open(path, 'rb') as source:
@@ -206,10 +257,7 @@ class Client:
                     break
                 if offset + len(block) > total:
                     raise ProtocolError('source image grew; upload not committed')
-                detail = self.request('boot-data', str(offset), base64.b64encode(block).decode('ascii'))
-                ack = NEXT_RE.fullmatch(detail)
-                if not ack or int(ack[1]) != offset + len(block):
-                    raise ProtocolError('boot-data ACK does not match next byte offset')
+                self.upload_block(block, offset, total)
                 sent.update(block)
                 offset += len(block)
             if offset != total or sent.hexdigest() != expected:
@@ -267,6 +315,27 @@ def write_paced(fd, data, *, burst=1, interval=0.005, sleep=time.sleep,
             _remaining(deadline, clock)
 
 
+def open_writer(path):
+    """Advisory, cross-process TX ownership; readers/collector are unaffected.
+
+    Lock the opened TTY inode itself, so symlink spellings share ownership.
+    Never wait for a busy writer and never transmit before acquiring the lock.
+    Hold the returned fd through the whole upload/exec+ACK transaction. Closing
+    it (also on process exit) releases ownership without a stale lockfile.
+    All participating host writers must use this API; old/raw writers do not.
+    """
+    fd = os.open(path, os.O_WRONLY | os.O_NOCTTY | os.O_NONBLOCK)
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise ProtocolError('UART writer busy; no request was sent') from error
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--uart', required=True, help='UART device (write-only; no termios changes)')
@@ -306,7 +375,7 @@ def main(argv=None):
         # Baseline is established before opening/writing the UART.
         raw = RawLog(options.raw_log, options.baseline)
         with options.log.open('a', encoding='utf-8') as log:
-            fd = os.open(options.uart, os.O_WRONLY | os.O_NOCTTY | os.O_NONBLOCK)
+            fd = open_writer(options.uart)
             client = Client(lambda data: write_paced(fd, data, burst=options.tx_burst, interval=options.tx_interval), raw.read,
                             timeout=options.timeout, retries=options.retries, log=log,
                             write_deadline=lambda data, deadline: write_paced(fd, data,

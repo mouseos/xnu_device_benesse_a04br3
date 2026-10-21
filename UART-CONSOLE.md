@@ -21,6 +21,18 @@ python3 tools/uart_client.py --uart /dev/ttyUSB0 --raw-log /path/to/uart.log sta
 python3 tools/uart_client.py --uart /dev/ttyUSB0 --raw-log /path/to/uart.log --timeout 60 upload boot.img --reboot
 ```
 
+Both host entry points acquire a shared advisory writer lock on the opened
+UART inode with `flock(LOCK_EX|LOCK_NB)` before transmitting. A busy second
+process fails immediately with `UART writer busy; no request was sent`.
+Ownership covers the complete upload (all commands) or framebuffer exec/ACK/
+decode operation, and closes on all exit/error paths. A symlink to the same TTY
+uses the same lock. The collector remains the sole UART reader and never needs
+this writer lock. There is no daemon, lockfile or termios change. Injected
+`Client` transports are unaffected. All actual writers must use the new API;
+old tools/raw writes and separately created device nodes are not coordinated
+by this advisory inode lock. Do not start a competing writer during an already
+running legacy command; this source change does not retrofit a running process.
+
 The host opens UART write-only and nonblocking. Each request attempt's timeout
 covers paced transmission, TX backpressure and ACK waiting together. Default
 pacing remains one byte every 5ms. A TX error/deadline ends the operation without

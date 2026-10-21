@@ -50,7 +50,7 @@ def retrieve(uart,raw_log,output,record,*,timeout=120,tx_interval=0.005):
                   output=str(output.resolve()),timeout=timeout)
             try:
                 deadline=time.monotonic()+timeout
-                fd=os.open(uart,os.O_WRONLY|os.O_NOCTTY|os.O_NONBLOCK)
+                fd=uart_client.open_writer(uart)
                 def remaining():
                     left=deadline-time.monotonic()
                     if left<=0:raise uart_client.AckTimeout('capture deadline expired; exec was not retried')
