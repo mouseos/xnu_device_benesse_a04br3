@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "9ea629fe63bbce2db0e81bdc9a53e02cd84c4a0f",
-    "role": "Preserve native launchd policy during explicit FairPlay isolation; SMP/DMA and locationd diagnostics"
+    "commit": "64509fca8d573bf0f17b12d028da99b33abf6c9c",
+    "role": "Locate native override transaction refusal without replacing unknown policy formats"
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
