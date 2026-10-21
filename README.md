@@ -580,3 +580,36 @@ owner. It validates the DT pairs, whole reservation, low-4GiB bounds, GPU-tail
 invariant and each static-mapping page before returning a pointer. SDIO must
 copy/parse that view after measured HVR/FVR are available. Boot delivery alone
 neither stages nor downloads a patch and never enables Wi-Fi hardware.
+
+
+### Optional WLAN executable input (payload v6)
+
+The separate WLAN processor input is the unmodified
+`proprietary/vendor/firmware/WIFI_RAM_CODE_MT6630` from the pinned
+[Android vendor repository](https://github.com/mouseos/android_vendor_benesse_a04br3)
+revision `0c756f413e7011231c8fb793af0930311023f68d` above. This is the Android 10
+BSP input, distinct from both WMT patch files and GPU firmware. Pass it explicitly
+as `--wlan-firmware /path/to/WIFI_RAM_CODE_MT6630` alongside `--wmt-firmware`,
+`--gpu-firmware`, the source-built kernel metadata, and `--emmc-root`.
+`wlan_firmware.py` validates the bounded MTKW header, whole-input CRC32, region
+ranges and destination overlap; encrypted region bytes remain unchanged.
+
+Payload v6 reserves kernel segments followed by WLAN, WMT and GPU. The last two
+retain their proven adjacency/tail contracts. ADT adds `WLANFirmware-A04BR3`
+with actual input bytes, separately from its rounded reserved size. The kernel
+validates all four DT ranges and every input page before giving the WLAN driver
+a CPU view. The driver owns a copy before transfer. An absent option preserves
+v1-v5 behavior. Packaging and parser success do not prove WLAN firmware boot,
+radio operation, scan, association or network connectivity.
+
+
+The first native Rogue firmware runtime candidate uses the matching DDK FWIF
+ABI and shared queues, page mappings and bounded startup. It verifies the
+crystal clock mux readback, keeps GPU INTID217 masked during the polled boot,
+and requires both the firmware-written ready flag and matching DDK/BVNC fields.
+After any hardware-start attempt the DMA allocations remain pinned until reboot;
+a reset readback alone is not considered proof that DMA memory can be reused.
+A `FW ready=1 ABI/DDK/BVNC verified` UART message establishes firmware startup,
+not iOS GPU command submission or rendering acceleration. The native BSD Wi-Fi
+adapter is a separate source component; it publishes readiness only from a real
+backend and is not automatically connected by firmware packaging.

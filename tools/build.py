@@ -12,6 +12,7 @@ import payload
 import mkinit
 import rogue_firmware
 import wmt_firmware
+import wlan_firmware
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -43,6 +44,7 @@ def main():
     parser.add_argument('--bootshim', type=Path, default=ROOT.parent / 'bootshim')
     parser.add_argument('--out', type=Path, default=ROOT.parent / 'out' / 'diagnostic')
     parser.add_argument('--kernel', type=Path)
+    parser.add_argument('--wlan-firmware', type=Path, help='Explicit MT6630 MTKW input; requires WMT/GPU assets and eMMC root')
     parser.add_argument('--wmt-firmware', type=Path, help='Explicit A04WMT1 bundle; requires --gpu-firmware and eMMC root')
     parser.add_argument('--gpu-firmware', type=Path, help='Explicit matching raw Rogue firmware, CPU staging only; requires eMMC root')
     parser.add_argument('--uart-samples',action='store_true',help='Development-only Ctrl-T live stack sampling on UART')
@@ -117,6 +119,14 @@ def main():
             gpu_blob, _ = load_gpu_firmware(args.gpu_firmware)
         except (OSError, ValueError) as error:
             parser.error('invalid --gpu-firmware: ' + str(error))
+    wlan_blob = None
+    if args.wlan_firmware is not None:
+        if args.wmt_firmware is None or args.gpu_firmware is None:
+            parser.error('--wlan-firmware requires --wmt-firmware and --gpu-firmware')
+        try:
+            wlan_blob, _ = wlan_firmware.load(args.wlan_firmware)
+        except (OSError, ValueError) as error:
+            parser.error('invalid --wlan-firmware: ' + str(error))
     lock = json.loads((ROOT / 'sources.lock.json').read_text())
     shim_root = args.bootshim.resolve()
     revision = git_revision(shim_root)
@@ -199,7 +209,9 @@ def main():
         if args.msdc_probe or args.emmc_root:
             cmdline += ' a04br3.msdc_probe=1'
         raw, kernel_info = payload.build(kernel, int(memory['physical_base'], 0),
-                                         int(memory['managed_size'], 0), cmdline, ramdisk=root_image, compact_ramdisk=bool(args.rootfs), gpu_firmware=gpu_blob, wmt_firmware=wmt_blob)
+                                         int(memory['managed_size'], 0), cmdline, ramdisk=root_image, compact_ramdisk=bool(args.rootfs), gpu_firmware=gpu_blob, wmt_firmware=wmt_blob, wlan_firmware=wlan_blob)
+        if wlan_blob is not None:
+            kernel_info["wlan_firmware"]["input_path"] = str(args.wlan_firmware.resolve())
         if wmt_blob is not None:
             kernel_info['wmt_firmware']['input_path'] = str(args.wmt_firmware.resolve())
         packed = raw

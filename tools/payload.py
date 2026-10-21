@@ -160,7 +160,13 @@ def sparse_encode(data):
 
 
 def build(kernel, phys_base=0x60000000, mem_size=0x18000000,
-          cmdline='-v serial=3 debug=0x14e keepsyms=1 cpus=1', ramdisk=None, compact_ramdisk=False, gpu_firmware=None, wmt_firmware=None):
+          cmdline='-v serial=3 debug=0x14e keepsyms=1 cpus=1', ramdisk=None, compact_ramdisk=False, gpu_firmware=None, wmt_firmware=None, wlan_firmware=None):
+    wlan_manifest = None
+    if wlan_firmware is not None:
+        if wmt_firmware is None or gpu_firmware is None:
+            raise ValueError("WLAN firmware requires WMT and GPU firmware")
+        from wlan_firmware import stage as stage_wlan
+        wlan_manifest = stage_wlan(wlan_firmware)
     wmt_manifest = None
     if wmt_firmware is not None:
         if gpu_firmware is None:
@@ -191,7 +197,7 @@ def build(kernel, phys_base=0x60000000, mem_size=0x18000000,
         raise ValueError('kernel plus ADT/boot_args exceeds the managed window')
     if ramdisk is not None and not ramdisk:
         raise ValueError('empty root RAMDisk')
-    count = len(segments) + (ramdisk is not None) + (gpu_firmware is not None) + (wmt_firmware is not None)
+    count = len(segments) + (ramdisk is not None) + (gpu_firmware is not None) + (wmt_firmware is not None) + (wlan_firmware is not None)
     if count > 16:
         raise ValueError('too many payload segments')
     offset = align(HEADER.size + SEGMENT.size * count, 64)
@@ -221,12 +227,25 @@ def build(kernel, phys_base=0x60000000, mem_size=0x18000000,
         payload += stored
         payload += bytes(-len(payload) % 8)
         end_pa += rd_size
+    wlan_info = None
+    if wlan_firmware is not None:
+        fw_size = align(len(wlan_firmware), PAGE)
+        if end_pa + fw_size > 1 << 32 or end_pa + fw_size + 2 * PAGE > phys_base + mem_size:
+            raise ValueError('WLAN firmware reservation exceeds physical/managed window')
+        SEGMENT.pack_into(payload, HEADER.size + len(segments) * SEGMENT.size,
+                          end_pa, fw_size, len(payload), len(wlan_firmware))
+        wlan_info = dict(physical=end_pa, size=fw_size, file_size=len(wlan_firmware),
+                         sha256=wlan_manifest['source_sha256'], regions=wlan_manifest['regions'],
+                         firmware_running=False)
+        payload += wlan_firmware
+        payload += bytes(-len(payload) % 8)
+        end_pa += fw_size
     wmt_info = None
     if wmt_firmware is not None:
         fw_size = align(len(wmt_firmware), PAGE)
         if end_pa + fw_size > 1 << 32 or end_pa + fw_size + 2 * PAGE > phys_base + mem_size:
             raise ValueError('WMT firmware reservation exceeds physical/managed window')
-        SEGMENT.pack_into(payload, HEADER.size + len(segments) * SEGMENT.size,
+        SEGMENT.pack_into(payload, HEADER.size + (len(segments) + (wlan_firmware is not None)) * SEGMENT.size,
                           end_pa, fw_size, len(payload), len(wmt_firmware))
         wmt_info = dict(physical=end_pa, size=fw_size, file_size=len(wmt_firmware),
                         sha256=wmt_manifest['source_sha256'], entries=wmt_manifest['entries'],
@@ -242,7 +261,7 @@ def build(kernel, phys_base=0x60000000, mem_size=0x18000000,
             raise ValueError('GPU firmware reservation exceeds 32bit physical space')
         if end_pa + fw_size + 2 * PAGE > phys_base + mem_size:
             raise ValueError('GPU firmware plus ADT/boot_args exceeds managed memory')
-        SEGMENT.pack_into(payload, HEADER.size + (len(segments) + (wmt_firmware is not None)) * SEGMENT.size,
+        SEGMENT.pack_into(payload, HEADER.size + (len(segments) + (wmt_firmware is not None) + (wlan_firmware is not None)) * SEGMENT.size,
                           end_pa, fw_size, len(payload), len(gpu_firmware))
         gpu_info = dict(physical=end_pa, size=fw_size, file_size=len(gpu_firmware),
                         sha256=firmware_manifest['source_sha256'],
@@ -250,7 +269,7 @@ def build(kernel, phys_base=0x60000000, mem_size=0x18000000,
         payload += gpu_firmware
         payload += bytes(-len(payload) % 8)
         end_pa += fw_size
-        version = 5 if wmt_firmware is not None else 4
+        version = 6 if wlan_firmware is not None else (5 if wmt_firmware is not None else 4)
     HEADER.pack_into(payload, 0, b'A04XNU01', version, count, virtual, phys_base,
                      mem_size, entry, end_pa, HEADER.size, offset, len(payload), command)
     if len(payload) > 0x8000000:
@@ -258,6 +277,8 @@ def build(kernel, phys_base=0x60000000, mem_size=0x18000000,
     info = dict(chained_rebases=resolved, segments=len(segments),
                 virt_base=virtual, phys_base=phys_base, mem_size=mem_size,
                 entry_va=entry, kernel_end_pa=end_pa, ramdisk=ramdisk_info)
+    if wlan_info is not None:
+        info["wlan_firmware"] = wlan_info
     if wmt_info is not None:
         info['wmt_firmware'] = wmt_info
     if gpu_info is not None:
