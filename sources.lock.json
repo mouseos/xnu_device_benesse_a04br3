@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "b26e634777fb8b716af0a8e0cecd9249ae399e03",
-    "role": "Native Personal association and real PSK runtime, preauthorization Ethernet, cancellation/deadline regressions; GTK completion policy pending reference-contract correction. Includes optional UI/capture/console updater. No new hardware verification."
+    "commit": "505ddb7ba091e006bd25f61b6b44b118eb68909d",
+    "role": "Initial WPA2-Personal real crypto/runtime with reference MT6630 GTK synchronous-HIF acceptance, actual PTK/TX completion, native/preauth routing and cancellation/deadline fixes. Root UI/capture/console updater; independent Rogue shader generator not dispatched. Hardware unverified."
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
