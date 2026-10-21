@@ -13,8 +13,11 @@ NUMERIC_ONE_KEYS = frozenset((
     'a04br3.msdc_dma', 'a04br3.msdc_probe', 'a04br3fb_diff',
     'a04br3.no_va', 'a04br3.fp',
 ))
-ONE_TOKEN = re.compile(r'(?<!\S)(' + '|'.join(
-    re.escape(key) for key in sorted(NUMERIC_ONE_KEYS)) + r')=1(?!\S)')
+# PE recognizes space/tab separators. A following separate '=' changes its
+# bare-key parsing, so retain the explicit value in that case as well.
+ONE_TOKEN = re.compile(r'(?<![^ \t])(' + '|'.join(
+    re.escape(key) for key in sorted(NUMERIC_ONE_KEYS)) +
+    r')=1(?=[ \t]|$)(?![ \t]+=)')
 
 
 def compact_for_handoff(command):

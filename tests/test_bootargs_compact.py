@@ -73,6 +73,21 @@ class BootArguments(unittest.TestCase):
             with self.assertRaises((ValueError, UnicodeEncodeError)):
                 compact_for_handoff(command)
 
+    def test_platform_token_boundaries_and_separate_equal_are_preserved(self):
+        raw = 'a04br3.console=1 =2 unknown=X\na04br3.fp=1 '
+        command = raw + ' '.join(key + '=1' for key in sorted(NUMERIC_ONE_KEYS)
+                                 if key != 'a04br3.console')
+        command += ' filler=' + 'z' * (620 - len(command) - 8)
+        compact = compact_for_handoff(command)
+        self.assertTrue(compact.startswith(raw))
+        for key in ('a04br3.console', 'unknown', *sorted(NUMERIC_ONE_KEYS)):
+            values = []
+            for text in (command, compact):
+                value = C.create_string_buffer(64)
+                found = self.lib.a04_test_parse(text.encode(), key.encode(), value, 64)
+                values.append((found, bytes(value)))
+            self.assertEqual(values[0], values[1], key)
+
     def test_actual_parser_under_sanitizers(self):
         harness = Path(self.tmp.name) / 'sanitizer.c'
         harness.write_text('#include <assert.h>\n#include <stdint.h>\n' +
