@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "4d516b7992ea315068aa4659c5b9b60a74bee464",
-    "role": "Native GP execution confirmed on 7fe9; source-native TA/3D priority verification candidate; no drawing acceleration"
+    "commit": "7824ac3ed2f710b5436128d346fe40c27908635f",
+    "role": "GP and TA/3D priority execution physically verified on 4d516b7; native WiFi media discovery fix candidate, rendering and WiFi UI unverified"
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
