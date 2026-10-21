@@ -499,5 +499,33 @@ python3 -m unittest discover -s device/tests -p test_rogue_firmware.py
 The output contains `code.bin`, `data.bin`, and `firmware.json` with exact
 section/segment placements and explicit unverified hardware state. Unsupported
 BVNC, formats, overlapping or out-of-range allocations/segments fail before
-output is created. GPU page tables, physical allocation and boot parameters
-must still be implemented before these buffers can run on the GPU.
+output is created. The kernel also supports CPU-only staging in owned physical allocations,
+with MIPS page tables and boot parameters. GPU wrapper/MMU activation,
+firmware execution and rendering remain unimplemented.
+
+
+### Reproduce the optional boot firmware input
+
+The input used for the CPU-staging test comes from the AOSP 10 BSP vendor
+repository, not from an undocumented developer-only file:
+[android_vendor_benesse_a04br3](https://github.com/mouseos/android_vendor_benesse_a04br3),
+revision `0c756f413e7011231c8fb793af0930311023f68d`, path
+`proprietary/vendor/firmware/rgx.fw.22.40.54.30`. That vendor tree records its
+BSP origin and regeneration procedure in its README. Copy the pinned repository
+archive, or extract this exact file from that archive, and pass its path
+explicitly. The legacy stock `rgx.fw.signed` cannot replace it.
+
+Append `--gpu-firmware /path/to/rgx.fw.22.40.54.30` to the documented full-donor
+boot build using `--kernel`, its matching `--kernel-build-json`, and
+`--emmc-root`. It cannot be combined with a RAMDisk. The builder validates the
+input and records its bytes, identity and hash in build metadata. No binary
+patch, manual physical-address selection or runtime-only runner edit is needed.
+
+The builder emits payload v4 with an unchanged raw firmware tail, reserves its
+rounded extent after the kernel, and publishes its actual byte length as
+`/chosen/memory-map/GPUFirmware-A04BR3`. It does not create a RAMDisk alias.
+The kernel checks that reservation before translating the input and staging
+code, data, MIPS PTEs and boot parameters in owned buffers. A successful
+`reserved payload CPU-staged/cache cleaned` UART message establishes CPU
+staging only; it does not establish firmware execution or GPU acceleration.
+Payload v1/v2/v3 behavior remains available without this optional input.
