@@ -58,3 +58,9 @@ no proprietary firmware or original firmware executable code is included.
 parser function excerpts under APSL 2.0, with Apple's original notice and
 `APPLE_LICENSE`. Its provenance records the fixed kernel source revision.
 The fixture verifies numeric flag compaction and is not a kernel payload.
+
+The original USB host console and CRC transport are BSD-2-Clause-Patent port
+source. MT8167 MUSB register and board power references are credited and pinned
+in the kernel `iokit/Kernel/arm/usb/*.sources.json` files. The USB implementation
+uses the existing source-built console and verified boot updater. PyUSB/libusb
+provide host USB access; no Apple USB driver binary is distributed.
