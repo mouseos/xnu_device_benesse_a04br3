@@ -160,7 +160,16 @@ def sparse_encode(data):
 
 
 def build(kernel, phys_base=0x60000000, mem_size=0x18000000,
-          cmdline='-v serial=3 debug=0x14e keepsyms=1 cpus=1', ramdisk=None, compact_ramdisk=False):
+          cmdline='-v serial=3 debug=0x14e keepsyms=1 cpus=1', ramdisk=None, compact_ramdisk=False, gpu_firmware=None):
+    firmware_manifest = None
+    if gpu_firmware is not None:
+        if ramdisk is not None or compact_ramdisk:
+            raise ValueError('GPU firmware cannot coexist with a RAMDisk')
+        if (any(c in cmdline for c in '\t\n\r\v\f') or
+                [t for t in cmdline.split(' ') if t.startswith('rd=')] != ['rd=emmcroot0']):
+            raise ValueError('GPU firmware requires only rd=emmcroot0')
+        from rogue_firmware import stage
+        firmware_manifest, _ = stage(gpu_firmware)
     data = bytearray(kernel)
     segments, entry, fixups = macho(data)
     resolved = resolve_chains(data, segments, fixups)
@@ -176,7 +185,7 @@ def build(kernel, phys_base=0x60000000, mem_size=0x18000000,
         raise ValueError('kernel plus ADT/boot_args exceeds the managed window')
     if ramdisk is not None and not ramdisk:
         raise ValueError('empty root RAMDisk')
-    count = len(segments) + (ramdisk is not None)
+    count = len(segments) + (ramdisk is not None) + (gpu_firmware is not None)
     if count > 16:
         raise ValueError('too many payload segments')
     offset = align(HEADER.size + SEGMENT.size * count, 64)
@@ -206,13 +215,33 @@ def build(kernel, phys_base=0x60000000, mem_size=0x18000000,
         payload += stored
         payload += bytes(-len(payload) % 8)
         end_pa += rd_size
+    gpu_info = None
+    if gpu_firmware is not None:
+        # v4 is raw firmware in a non-entry tail reservation, never a RAMDisk.
+        fw_size = align(len(gpu_firmware), PAGE)
+        if end_pa + fw_size > 1 << 32:
+            raise ValueError('GPU firmware reservation exceeds 32bit physical space')
+        if end_pa + fw_size + 2 * PAGE > phys_base + mem_size:
+            raise ValueError('GPU firmware plus ADT/boot_args exceeds managed memory')
+        SEGMENT.pack_into(payload, HEADER.size + len(segments) * SEGMENT.size,
+                          end_pa, fw_size, len(payload), len(gpu_firmware))
+        gpu_info = dict(physical=end_pa, size=fw_size, file_size=len(gpu_firmware),
+                        sha256=firmware_manifest['source_sha256'],
+                        bvnc=firmware_manifest['bvnc'], firmware_running=False)
+        payload += gpu_firmware
+        payload += bytes(-len(payload) % 8)
+        end_pa += fw_size
+        version = 4
     HEADER.pack_into(payload, 0, b'A04XNU01', version, count, virtual, phys_base,
                      mem_size, entry, end_pa, HEADER.size, offset, len(payload), command)
     if len(payload) > 0x8000000:
         raise ValueError('payload exceeds the 128 MiB loader limit')
-    return bytes(payload), dict(chained_rebases=resolved, segments=len(segments),
-                               virt_base=virtual, phys_base=phys_base, mem_size=mem_size,
-                               entry_va=entry, kernel_end_pa=end_pa, ramdisk=ramdisk_info)
+    info = dict(chained_rebases=resolved, segments=len(segments),
+                virt_base=virtual, phys_base=phys_base, mem_size=mem_size,
+                entry_va=entry, kernel_end_pa=end_pa, ramdisk=ramdisk_info)
+    if gpu_info is not None:
+        info['gpu_firmware'] = gpu_info
+    return bytes(payload), info
 
 
 def main():

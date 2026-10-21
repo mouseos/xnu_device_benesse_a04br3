@@ -10,6 +10,7 @@ import subprocess
 from bootimg import build_from_source, sha256
 import payload
 import mkinit
+import rogue_firmware
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -28,11 +29,20 @@ def git_revision(path):
     return result.stdout.strip() if result.returncode == 0 else None
 
 
+def load_gpu_firmware(path):
+    """Read only an explicitly supplied path, with a bounded read before parse."""
+    with path.open('rb') as stream:
+        blob = stream.read(rogue_firmware.LIMIT + 1)
+    manifest, _ = rogue_firmware.stage(blob)
+    return blob, manifest
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--bootshim', type=Path, default=ROOT.parent / 'bootshim')
     parser.add_argument('--out', type=Path, default=ROOT.parent / 'out' / 'diagnostic')
     parser.add_argument('--kernel', type=Path)
+    parser.add_argument('--gpu-firmware', type=Path, help='Explicit matching raw Rogue firmware, CPU staging only; requires eMMC root')
     parser.add_argument('--uart-samples',action='store_true',help='Development-only Ctrl-T live stack sampling on UART')
     parser.add_argument('--display-hz',type=int,choices=(5,10,20),default=5,help='Changed-pixel copy limit with --fast-development')
     parser.add_argument('--fast-development',action='store_true',help='Opt-in low-load software display: 20Hz notifications, 5Hz changed-pixel copies')
@@ -89,6 +99,14 @@ def main():
         parser.error('choose --rootfs or --bringup-init')
     if (args.bringup_init or args.rootfs or args.emmc_root) and not args.kernel:
         parser.error('--bringup-init requires --kernel')
+    gpu_blob = None
+    if args.gpu_firmware is not None:
+        if not args.kernel or not args.emmc_root or args.rootfs or args.bringup_init:
+            parser.error('--gpu-firmware requires --kernel and --emmc-root without a RAMDisk')
+        try:
+            gpu_blob, _ = load_gpu_firmware(args.gpu_firmware)
+        except (OSError, ValueError) as error:
+            parser.error('invalid --gpu-firmware: ' + str(error))
     lock = json.loads((ROOT / 'sources.lock.json').read_text())
     shim_root = args.bootshim.resolve()
     revision = git_revision(shim_root)
@@ -171,7 +189,7 @@ def main():
         if args.msdc_probe or args.emmc_root:
             cmdline += ' a04br3.msdc_probe=1'
         raw, kernel_info = payload.build(kernel, int(memory['physical_base'], 0),
-                                         int(memory['managed_size'], 0), cmdline, ramdisk=root_image, compact_ramdisk=bool(args.rootfs))
+                                         int(memory['managed_size'], 0), cmdline, ramdisk=root_image, compact_ramdisk=bool(args.rootfs), gpu_firmware=gpu_blob)
         packed = raw
         kernel_info.update(source_build=provenance,
                            payload_bytes=len(packed), kernel_sha256=sha256(kernel))
