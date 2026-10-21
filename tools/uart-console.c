@@ -65,11 +65,22 @@ static int command(const char *line,char reply[512]){
  memcpy(last_id,v[1],strlen(v[1])+1);memcpy(last_line,line,len+1);memcpy(last_reply,reply,strlen(reply)+1);return restart;
 }
 #ifndef A04_CONSOLE_TEST
+#include <termios.h>
+static int configure_uart(int fd){
+ struct termios t;if(tcgetattr(fd,&t)<0)return ERRNO;
+ t.c_iflag&=~(IGNCR|INLCR|ISTRIP|IXON|IXOFF|BRKINT);t.c_iflag|=ICRNL|IGNBRK;
+ t.c_oflag&=~ONLCR; /* The underlying console already emits CR before LF. */
+ t.c_lflag|=ICANON;t.c_lflag&=~(ECHO|ECHONL|ISIG|IEXTEN);
+ t.c_cflag|=CLOCAL|CREAD;
+ return tcsetattr(fd,TCSANOW,&t)<0?ERRNO:0;
+}
 static void console(void){
  (void)setsid();int fd=open("/dev/console",2);if(fd<0)_exit(120);
  (void)ioctl(fd,0x20007461UL,0); /* TIOCSCTTY, public Darwin ttycom.h */
  int group=getpid();(void)ioctl(fd,0x80047476UL,&group); /* TIOCSPGRP */
  for(int n=0;n<3;n++)if(dup2(fd,n)<0)_exit(121);if(fd>2)close(fd);
+ int terminal_error=configure_uart(0);char terminal_message[128];
+ snprintf(terminal_message,sizeof(terminal_message),"\nA04BR3_CONSOLE terminal configuration errno=%d\n",terminal_error);say(terminal_message);
  say("\nA04BR3_CONSOLE READY version=1 canonical-ascii boot-update-explicit\n");
  char line[1024],reply[512];unsigned at=0;int overflow=0;
  for(;;){char c;ssize_t n=read(0,&c,1);if(n<=0){int error=n<0?ERRNO:0;if(error==4)continue;
@@ -77,7 +88,7 @@ static void console(void){
    snprintf(message,sizeof(message),"\nA04BR3_CONSOLE input recovery=%u read=%ld errno=%d\n",++recoveries,(long)n,error);say(message);
    if(recoveries>60)_exit(122);sleep(1);
    int replacement=open("/dev/console",2);if(replacement<0)continue;
-   (void)ioctl(replacement,0x20007461UL,0);int group=getpid();(void)ioctl(replacement,0x80047476UL,&group);
+   (void)configure_uart(replacement);(void)ioctl(replacement,0x20007461UL,0);int group=getpid();(void)ioctl(replacement,0x80047476UL,&group);
    for(int j=0;j<3;j++)(void)dup2(replacement,j);if(replacement>2)close(replacement);continue;}if(c=='\r'||c=='\n'){if(!overflow&&at){line[at]=0;reply[0]=0;int restart=command(line,reply);if(reply[0])say(reply);if(restart){sync();if(reboot(0)<0)say("\nA04BR3_CONSOLE reboot failed\n");}}at=0;overflow=0;}else if(!overflow){if(at+1<sizeof(line))line[at++]=c;else overflow=1;}}
 }
 int main(int argc,char **argv){

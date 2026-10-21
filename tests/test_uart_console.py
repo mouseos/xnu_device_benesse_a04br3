@@ -40,4 +40,33 @@ int main(void){char r[512];
    p=pathlib.Path(d);(p/'test.c').write_text(source)
    subprocess.run(['clang','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-function','-fsanitize=address,undefined',str(p/'test.c'),'-o',str(p/'test')],check=True)
    subprocess.run([str(p/'test')],check=True)
+class Terminal(unittest.TestCase):
+ def test_canonical_transport_preserves_control_bytes_without_echo(self):
+  import ctypes,errno,os,pty,select,termios
+  source=(ROOT/'tools/uart-console.c').read_text()
+  body=source.split('static int configure_uart(int fd){',1)[1].split('\nstatic void console(void)',1)[0]
+  unit='#include <termios.h>\n#include <errno.h>\n#define ERRNO errno\nint configure_uart(int fd){'+body
+  with tempfile.TemporaryDirectory() as d:
+   p=pathlib.Path(d);(p/'terminal.c').write_text(unit)
+   subprocess.run(['clang','-shared','-fPIC','-Wall','-Wextra','-Werror',str(p/'terminal.c'),'-o',str(p/'terminal.so')],check=True)
+   lib=ctypes.CDLL(str(p/'terminal.so'));master,slave=pty.openpty()
+   try:
+    t=termios.tcgetattr(slave)
+    t[0]|=termios.BRKINT|termios.IXON|termios.IXOFF
+    t[3]|=termios.ECHO|termios.ISIG|termios.IEXTEN
+    termios.tcsetattr(slave,termios.TCSANOW,t)
+    self.assertEqual(lib.configure_uart(slave),0)
+    t=termios.tcgetattr(slave)
+    self.assertTrue(t[3]&termios.ICANON)
+    self.assertTrue(t[0]&termios.IGNBRK)
+    self.assertFalse(t[0]&(termios.BRKINT|termios.IXON|termios.IXOFF))
+    self.assertFalse(t[3]&(termios.ECHO|termios.ISIG|termios.IEXTEN))
+    packet=b'@A04 test \x03\x1a\x1c status\r'
+    os.write(master,packet)
+    self.assertTrue(select.select([slave],[],[],1)[0])
+    self.assertEqual(os.read(slave,1024),packet[:-1]+b'\n')
+    self.assertFalse(select.select([master],[],[],0)[0])
+    self.assertEqual(lib.configure_uart(-1),errno.EBADF)
+   finally:
+    os.close(master);os.close(slave)
 if __name__=='__main__':unittest.main()
