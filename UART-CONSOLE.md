@@ -66,3 +66,21 @@ unchanged native-launchd exec on supervisor fork failure, partial/broken
 upload rejection and the actual terminal configuration on a PTY. These
 checks do not establish hardware recovery or recovery from a kernel hang,
 power loss during COMMIT, or a candidate that fails before the console.
+
+Framebuffer observations prefer the source-built helper installed at
+`/usr/appleinternal/sbin/a04-fb-capture`. Record the collector byte offset and
+a fresh 32-character lowercase hexadecimal frame id before running:
+
+```
+python3 tools/uart_client.py --uart /dev/ttyUSB0 --raw-log /path/to/uart.log exec /usr/appleinternal/sbin/a04-fb-capture --uart-preview FRAMEID
+python3 tools/a04-fb-decode.py --log /path/to/uart.log --frame-id FRAMEID --start-offset BASELINE --output /absolute/new-screen.png
+```
+
+The helper reads only the actual 800x1280 panel surface returned by the board
+framebuffer, validates its geometry and BGRA layout, and sends a 200x320
+preview. The host follows the existing collector file and verifies frame id,
+contiguous chunks, per-chunk CRC and complete SHA before writing a PNG. Mixed
+native logs are tolerated; incomplete or corrupted frames are rejected.
+The current surface lock does not freeze presentation: captures are best effort.
+Use the tablet camera only when framebuffer capture is unavailable. A successful
+host test or SDK build is not proof of a screenshot from the device.
