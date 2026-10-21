@@ -176,7 +176,7 @@ def main():
         if args.uart_console:
             if not (args.full_donor_root and args.prepare_development_root and args.writable_root):
                 parser.error('--uart-console requires full writable development root preparation')
-            cmdline += ' a04br3.uart_console=1 a04br3.boot_update=1 launchdsuffix=a04br3'
+            cmdline += ' a04br3.console=1 launchdsuffix=a04br3'
         if args.uart_samples:
             cmdline += ' a04br3.sample_uart=1'
         if args.prepare_development_root:
@@ -213,6 +213,12 @@ def main():
             cmdline += ' rd=emmcroot0 a04br3.unsealed_root=1'
         if args.msdc_probe or args.emmc_root:
             cmdline += ' a04br3.msdc_probe=1'
+        if args.uart_console:
+            # Keep the existing 608-byte handoff ABI and complete source IDs.
+            # Copy cadence defaults to10Hz; omit only that redundant default.
+            cmdline = cmdline.replace(' keepsyms=1','').replace(' -noprogress','')
+            if args.display_hz == 10:
+                cmdline = cmdline.replace(' a04br3fb_hz=10','')
         raw, kernel_info = payload.build(kernel, int(memory['physical_base'], 0),
                                          int(memory['managed_size'], 0), cmdline, ramdisk=root_image, compact_ramdisk=bool(args.rootfs), gpu_firmware=gpu_blob, wmt_firmware=wmt_blob, wlan_firmware=wlan_blob)
         if wlan_blob is not None:
