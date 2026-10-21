@@ -529,3 +529,54 @@ code, data, MIPS PTEs and boot parameters in owned buffers. A successful
 `reserved payload CPU-staged/cache cleaned` UART message establishes CPU
 staging only; it does not establish firmware execution or GPU acceleration.
 Payload v1/v2/v3 behavior remains available without this optional input.
+
+### Explicit WMT + GPU boot assets (payload v5)
+
+WMT patch provenance is the external [CT3_GPL_LGPL_Src source repository](https://github.com/s1204IT/CT3_GPL_LGPL_Src),
+revision `7c4782127d4ea11965be00ce1343056be9bfb769`. Select **both** files explicitly:
+
+- `combo_tool/patch_folder/mt6630_patch_e3_0_hdr.bin`, 49748 bytes,
+  SHA256 `4ca2581504af06311eec668d32993aa43f264bb684aa891df3cffaa2ca9ade3b`.
+- `combo_tool/patch_folder/mt6630_patch_e3_1_hdr.bin`, 65548 bytes,
+  SHA256 `889ead0bb4fa904bfee12dc31427af0ff884397d8b5ca1bb4bf69278195119d3`.
+
+This is MediaTek CT3 reference-source provenance, not a claim that its launcher
+is byte-identical to the TAB-A04-BR3 stock executable. The source selection rule
+is FVR low8, with additional complete-set validation. The measured candidate
+identity is chip `6630`, HVR `8a12`, FVR `8a11`. These files match that contract;
+this does not establish successful radio firmware execution. E2 and the legacy
+non-multipart E3 file are not substitutes. No patch body is stored in this repo.
+
+With the pinned external repository checked out at `/path/to/CT3_GPL_LGPL_Src`:
+
+```sh
+python3 tools/wmt_firmware.py \
+  --patch /path/to/CT3_GPL_LGPL_Src/combo_tool/patch_folder/mt6630_patch_e3_0_hdr.bin \
+  --patch /path/to/CT3_GPL_LGPL_Src/combo_tool/patch_folder/mt6630_patch_e3_1_hdr.bin \
+  --out /path/to/new-wmt.bundle > /path/to/new-wmt-manifest.json
+```
+
+The output is exclusive-create and deterministic for this explicit input order:
+115456 bytes, SHA256 `d17364077b0c3517834079dc4bf2f36a941b7046ebee7af7cb1fa7ea0e0c057c`.
+The JSON records input paths, hashes, CRC32 and selected header metadata.
+The source packer and reader use the same A04WMT1 header32/descriptor64 contract
+as `A04BR3WMTFirmware.h`, including whole-file CRC32, bounded ranges, names,
+ROM compatibility, release coherence, and complete one-based sequences. CRC32
+is an integrity check, not authentication. No directory scan or implicit asset
+lookup is performed.
+
+Append `--wmt-firmware /path/to/new-wmt.bundle` alongside the existing explicit
+`--gpu-firmware /path/to/rgx.fw.22.40.54.30` and `--emmc-root` build arguments.
+WMT requires GPU; both assets are required for v5. RAMDisk and compact RAMDisk
+are forbidden. The v5 segment list is kernel segments, WMT, GPU. WMT begins at
+the rounded kernel end; GPU immediately follows WMT's 16KiB-rounded extent and
+remains the final asset, preserving the current GPU range contract. ADT uses
+actual input lengths in `WMTFirmware-A04BR3` and `GPUFirmware-A04BR3`, with no
+RAMDisk alias. `Kernel-A04BR3` reserves the whole kernel+asset span before the
+separate ADT/boot_args pages. v1-v4 retain their original formats.
+
+The kernel's `A04BR3WMTBootFirmware.h` supplies a checked CPU view to the SDIO
+owner. It validates the DT pairs, whole reservation, low-4GiB bounds, GPU-tail
+invariant and each static-mapping page before returning a pointer. SDIO must
+copy/parse that view after measured HVR/FVR are available. Boot delivery alone
+neither stages nor downloads a patch and never enables Wi-Fi hardware.

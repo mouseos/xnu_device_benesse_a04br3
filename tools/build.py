@@ -11,6 +11,7 @@ from bootimg import build_from_source, sha256
 import payload
 import mkinit
 import rogue_firmware
+import wmt_firmware
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -42,6 +43,7 @@ def main():
     parser.add_argument('--bootshim', type=Path, default=ROOT.parent / 'bootshim')
     parser.add_argument('--out', type=Path, default=ROOT.parent / 'out' / 'diagnostic')
     parser.add_argument('--kernel', type=Path)
+    parser.add_argument('--wmt-firmware', type=Path, help='Explicit A04WMT1 bundle; requires --gpu-firmware and eMMC root')
     parser.add_argument('--gpu-firmware', type=Path, help='Explicit matching raw Rogue firmware, CPU staging only; requires eMMC root')
     parser.add_argument('--uart-samples',action='store_true',help='Development-only Ctrl-T live stack sampling on UART')
     parser.add_argument('--display-hz',type=int,choices=(5,10,20),default=5,help='Changed-pixel copy limit with --fast-development')
@@ -99,6 +101,14 @@ def main():
         parser.error('choose --rootfs or --bringup-init')
     if (args.bringup_init or args.rootfs or args.emmc_root) and not args.kernel:
         parser.error('--bringup-init requires --kernel')
+    wmt_blob = None
+    if args.wmt_firmware is not None:
+        if args.gpu_firmware is None or not args.kernel or not args.emmc_root or args.rootfs or args.bringup_init:
+            parser.error('--wmt-firmware requires --gpu-firmware, --kernel and --emmc-root without a RAMDisk')
+        try:
+            wmt_blob, _ = wmt_firmware.load(args.wmt_firmware)
+        except (OSError, ValueError) as error:
+            parser.error('invalid --wmt-firmware: ' + str(error))
     gpu_blob = None
     if args.gpu_firmware is not None:
         if not args.kernel or not args.emmc_root or args.rootfs or args.bringup_init:
@@ -189,7 +199,9 @@ def main():
         if args.msdc_probe or args.emmc_root:
             cmdline += ' a04br3.msdc_probe=1'
         raw, kernel_info = payload.build(kernel, int(memory['physical_base'], 0),
-                                         int(memory['managed_size'], 0), cmdline, ramdisk=root_image, compact_ramdisk=bool(args.rootfs), gpu_firmware=gpu_blob)
+                                         int(memory['managed_size'], 0), cmdline, ramdisk=root_image, compact_ramdisk=bool(args.rootfs), gpu_firmware=gpu_blob, wmt_firmware=wmt_blob)
+        if wmt_blob is not None:
+            kernel_info['wmt_firmware']['input_path'] = str(args.wmt_firmware.resolve())
         packed = raw
         kernel_info.update(source_build=provenance,
                            payload_bytes=len(packed), kernel_sha256=sha256(kernel))

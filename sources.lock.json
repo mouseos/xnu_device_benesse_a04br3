@@ -1,11 +1,11 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "c4d821bd03a865a8d75bcb32ab5da6ac92eb4fe1",
-    "role": "native iPad identity, MT6630 revision queries, reserved GPU asset CPU staging"
+    "commit": "41a44c270ac2a979bcc4f861096d03b02ed52aeb",
+    "role": "native iPad identity, verified GPU CPU staging, MT6630 matched patch transfer and fn1 startup"
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
-    "commit": "04555a49ac7edb2c45cabc259973a24086f29d36"
+    "commit": "8430a8b25715228e37401b5c66f4fa5a6dd1f394"
   }
 }
