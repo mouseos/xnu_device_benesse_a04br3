@@ -218,9 +218,6 @@ def main():
             cmdline += ' rd=emmcroot0 a04br3.unsealed_root=1'
         if args.msdc_probe or args.emmc_root:
             cmdline += ' a04br3.msdc_probe=1'
-        if args.usb_console:
-            if not args.uart_console: parser.error('--usb-console requires --uart-console')
-            cmdline += ' a04br3.usb=1'
         if args.uart_console:
             # Keep the existing 608-byte handoff ABI and complete source IDs.
             # Copy cadence defaults to10Hz; omit only that redundant default.

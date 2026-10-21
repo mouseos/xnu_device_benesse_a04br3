@@ -11,7 +11,9 @@ BOOT_LINE_BYTES = 608
 NUMERIC_ONE_KEYS = frozenset((
     'a04br3.console', 'a04br3.sample_uart', 'a04br3.prepare_root',
     'a04br3.msdc_dma', 'a04br3.msdc_probe', 'a04br3fb_diff',
-    'a04br3.no_va', 'a04br3.fp',
+    'a04br3.no_va', 'a04br3.fp', 'a04br3.usb',
+    'a04br3.root_rw', 'a04br3.emmc_rw', 'a04br3.platform_root',
+    'a04br3.dev_keystore', 'a04br3.unsealed_root',
 ))
 # PE recognizes space/tab separators. A following separate '=' changes its
 # bare-key parsing, so retain the explicit value in that case as well.
