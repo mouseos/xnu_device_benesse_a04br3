@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "82a323207b5388afa46cf47372f0785e78a2e005",
-    "role": "HS USB root console with verified bsdiff self-update; Wi-Fi native scan accepts donor dictionary default at +0x1310. Hardware verification of SSID listing pending."
+    "commit": "911d14deb2567abf0cfd8777f49e6aa52ec3f1cb",
+    "role": "HS USB root console with verified bsdiff self-update; native scan SET rejection diagnostics (stage and unexpected request bytes). Diagnostic build, not a Wi-Fi fix."
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
