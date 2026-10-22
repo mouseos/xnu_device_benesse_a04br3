@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "faefab7aa9b33f0f68f490188188ae6dc52ef52e",
-    "role": "HS USB root console with verified bsdiff self-update; SSIDs in Setup; console-only virtual keyboard; zlib full-res fb capture; a04-root-tweaks development Setup skip helper installed (explicit invocation)."
+    "commit": "765777b8f07f032949a01afe7607ce4ed2e0d60a",
+    "role": "HS USB root console with verified bsdiff self-update; SSIDs in Setup; console-only virtual keyboard; zlib full-res fb capture; a04-root-tweaks development Setup skip (direct preference plists)."
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
