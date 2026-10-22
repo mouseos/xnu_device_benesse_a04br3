@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "bf0ec97193171c7afc45b40f9f2ae08424fc075a",
-    "role": "HS USB root console with verified bsdiff self-update; native scan accepts CoreWiFi requests and the version0 GET11 header, skips unencodable records. Hardware SSID listing pending."
+    "commit": "393de29c50b146d1bb5c76053544e5ecaf9cc167",
+    "role": "HS USB root console with verified bsdiff self-update; native scan accepts CoreWiFi requests and version0 GET11; injected UI presses held ~100ms. Hardware SSID listing pending."
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
