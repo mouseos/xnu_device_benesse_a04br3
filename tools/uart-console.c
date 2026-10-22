@@ -16,6 +16,7 @@ extern int open(const char *,int,...),close(int),dup2(int,int),getpid(void),sets
 extern ssize_t read(int,void *,size_t),write(int,const void *,size_t);
 extern void _exit(int),sync(void);
 extern unsigned int sleep(unsigned int);
+extern off_t lseek(int,off_t,int);
 extern int usleep(unsigned int);
 extern size_t strlen(const char *);
 extern int strcmp(const char *,const char *),memcmp(const void *,const void *,size_t),snprintf(char *,size_t,const char *,...);
@@ -217,6 +218,8 @@ static int command(const char *line,char reply[512]){
   else if(gzip_mode||upload_broken||upload_verified||!expected_image_bytes||staged>expected_image_bytes||len>expected_image_bytes-staged)err=22;
   else {u64 done=0;while(done<len){struct boot_copy c;c.source=src+done;c.bytes=len-done>65536?65536:len-done;
     if(ioctl(bootfd,COPY,&c)<0){err=ERRNO;upload_broken=1;break;}done+=c.bytes;staged+=c.bytes;}
+   /* Raw writes are checked at file offset == staged; COPY does not move it. */
+   if(!err&&lseek(bootfd,(off_t)staged,0)<0){err=ERRNO;upload_broken=1;}
    if(!err)snprintf(detail,sizeof(detail),"offset=%llu",staged);}
  }
  else if(!strcmp(v[2],"boot-data")&&n==5){u64 off=0;unsigned char data[384];int count=decode(v[4],data);if(number(v[3],&off)||off!=staged||count<1)err=22;else if(bootfd<0)err=9;else if(gzip_mode||upload_broken||upload_verified||!expected_image_bytes||staged>expected_image_bytes||(u64)count>expected_image_bytes-staged)err=22;else{int at=0;while(at<count){ssize_t k=write(bootfd,data+at,(size_t)(count-at));if(k<=0){err=k<0?ERRNO:5;upload_broken=1;break;}at+=(int)k;staged+=(u64)k;}if(!err)snprintf(detail,sizeof(detail),"offset=%llu",staged);}}
