@@ -79,7 +79,7 @@ def retrieve(uart,raw_log,output,record,*,timeout=120,tx_interval=0.005):
                 now=raw_log.stat()
                 if (now.st_dev,now.st_ino)!=(info.st_dev,info.st_ino):
                     raise uart_client.ProtocolError('collector log replaced during capture')
-                ppm=decoder.decode_log(raw_log,frame_id,baseline,(info.st_dev,info.st_ino))
+                ppm=decoder.decode_log(raw_log,frame_id,baseline,(info.st_dev,info.st_ino),recover_interleaved=True)
                 png=decoder.png_from_ppm(ppm)
                 decoder.publish_image(output,png)
                 result=dict(frame_id=frame_id,baseline=baseline,width=200,height=320,
