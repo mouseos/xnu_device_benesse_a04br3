@@ -142,7 +142,7 @@ def main():
     else:
         with image.open('wb') as stream:stream.truncate(size)
         subprocess.run([a.mkfs,'-s','-J','-v','A04BR3Root',str(image)],check=True)
-    command=['qemu-system-x86_64','-nodefaults','-nographic','-serial','stdio','-no-reboot','-m','2048','-smp','4',
+    command=['qemu-system-x86_64','-nodefaults','-nographic','-serial','stdio','-no-reboot','-m','4096','-smp','4',
         '-kernel',str(kernel),'-initrd',str(initramfs),'-append','console=ttyS0 panic=1 rdinit=/init',
         '-drive','file='+str(image)+',format=raw,if=virtio,cache=writeback']
     if os.access('/dev/kvm',os.R_OK|os.W_OK):command+=['-enable-kvm','-cpu','host']
