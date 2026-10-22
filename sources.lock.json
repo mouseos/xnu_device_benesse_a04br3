@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "2216a4bbb398be4176e116956721a18c1f8c0be2",
-    "role": "HFS+ VNOP_CLONEFILE so installd can stage system apps"
+    "commit": "a03c0e94fa5e6362824201be1a8c2f54eb726c0c",
+    "role": "embed a04-root-tweaks rerun-migration"
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
