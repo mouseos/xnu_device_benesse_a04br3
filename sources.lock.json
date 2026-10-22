@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "271d7a0cf538202a9b532af7cb0810fb256e85c6",
-    "role": "HS USB root console with verified bsdiff self-update; native scan lists SSIDs in Setup on hardware; console-only virtual USB keyboard for text entry; injected Home uses physical key path."
+    "commit": "353526abce1da8fd88aba559ae7e05c4bd2ba8a2",
+    "role": "HS USB root console with verified bsdiff self-update; native scan lists SSIDs in Setup; console-only virtual USB keyboard (US ANSI); full-resolution fb capture helpers pinned from device 678dcc9."
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
