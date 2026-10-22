@@ -122,6 +122,15 @@ keyboard_snapshot(void)
     keyboard_object("remoteRequiredScene", remote, 0x18, 8);
     keyboard_object("remoteSuppressedScene", remote, 0x50, 8);
     keyboard_object("remoteWindowEnabled", remote, 0x71, 1);
+    /* +[UIScreen mainScreen] cache (REA __UIScreen_mainScreen_ reads
+     * 0x1e1db7ce0). -[UIScreen _isMainScreen]/_isEmbeddedScreen use +0xcd
+     * (isMainDisplay at init) and the weak display reference at +0xa0;
+     * -[UIScreen _isExternal] returns true when that reference is nil, which
+     * makes the software keyboard "external screen" and disallowed. */
+    uint64_t screen = 0;
+    (void)keyboard_value("mainScreen", UINT64_C(0x1e1db7ce0) + keyboard_slide, 8, &screen);
+    keyboard_object("mainScreenMainDisplayByte", screen, 0xcd, 1);
+    keyboard_object("mainScreenDisplayWeakRef", screen, 0xa0, 8);
     printf("KBDSTATE reads=%u; no absent value interpreted as false\n", keyboard_reads);
     return 0;
 }
