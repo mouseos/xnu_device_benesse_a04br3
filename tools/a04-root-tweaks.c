@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause-Patent
  * Root-only development Setup skip for the A04BR3 port, run once through the
  * root console: exec /usr/appleinternal/sbin/a04-root-tweaks setup-skip
+ * (rerun-migration repeats the first-boot DataMigrator pass, see below).
  * Mirrors dipa-studio/ios-sweet tools/sweet-root-tweaks.py (067c9b3) for the
  * Setup and activation parts: purplebuddy SetupDone/SetupFinishedAllSteps/
  * SetupVersion 11, mini-buddy flags off, no cloud configuration UI, and the
@@ -126,9 +127,38 @@ static void mobilegestalt_recompute(void)
     fputs("a04-root-tweaks: no free MobileGestalt backup name\n", stderr); failures++;
 }
 
+static void rerun_migration(void)
+{
+    /* On the first boot, with no com.apple.migration.plist, DataMigrator ran
+     * the DataClassMigrators and SystemAppMigrator staged the removable
+     * system apps; that install failed (the HFS+ volume lacked clonefile) and
+     * later boots, seeing LastSystemVersion 20H392, never retried. Move the
+     * record aside so the next boot repeats the first-boot migration.
+     * Earlier backups are never overwritten. */
+    const char *path = "/private/var/mobile/Library/Preferences/com.apple.migration.plist";
+    char backup[256];
+    struct stat st;
+    if (lstat(path, &st)) { printf("migration record absent (errno=%d); migration pending\n", errno); return; }
+    for (unsigned i = 0; i < 100; i++) {
+        snprintf(backup, sizeof(backup), "%s.a04br3-rerun-%u", path, i);
+        if (lstat(backup, &st) && errno == ENOENT) {
+            if (rename(path, backup)) { fprintf(stderr, "a04-root-tweaks: migration record move failed errno=%d\n", errno); failures++; }
+            else printf("migration record moved to %s\n", backup);
+            return;
+        }
+    }
+    fputs("a04-root-tweaks: no free migration backup name\n", stderr); failures++;
+}
+
 int main(int argc, char **argv)
 {
-    if (argc != 2 || strcmp(argv[1], "setup-skip")) { fputs("usage: a04-root-tweaks setup-skip\n", stderr); return 2; }
+    if (argc == 2 && !strcmp(argv[1], "rerun-migration")) {
+        if (geteuid() != 0) { fputs("a04-root-tweaks: root required\n", stderr); return 1; }
+        rerun_migration();
+        printf("a04-root-tweaks: rerun-migration %s (%d failures); reboot to apply\n", failures ? "incomplete" : "applied", failures);
+        return failures ? 1 : 0;
+    }
+    if (argc != 2 || strcmp(argv[1], "setup-skip")) { fputs("usage: a04-root-tweaks setup-skip|rerun-migration\n", stderr); return 2; }
     if (geteuid() != 0) { fputs("a04-root-tweaks: root required\n", stderr); return 1; }
     int eleven = 11; CFNumberRef version = CFNumberCreate(NULL, kCFNumberIntType, &eleven);
     set_pref("com.apple.purplebuddy", "SetupDone", kCFBooleanTrue);
