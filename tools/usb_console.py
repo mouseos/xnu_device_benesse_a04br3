@@ -117,12 +117,27 @@ class BulkStream:
         left=deadline-self.clock()
         if left<=0:raise uart.AckTimeout('USB console deadline expired')
         return left
+    def exchange_matching(self,frame,timeout):
+        """Send once, then skip (bounded) any queued IN reply for another sequence.
+
+        Every reply echoes the request sequence at bytes 8..12. A reply left by an
+        earlier aborted session must never be taken as the answer to this one.
+        """
+        reply=bytes(self.exchange(frame,timeout))
+        for _ in range(8):
+            if len(reply)>=12 and reply[8:12]==frame[8:12]:return reply
+            if self.read_reply is None:return reply
+            try:reply=bytes(self.read_reply(timeout))
+            except TimeoutError as error:
+                # Never resend the current OUT after skipping a stale IN.
+                raise uart.ProtocolError('USB stale reply skipped but current IN unavailable; no new OUT') from error
+        return reply
     def exchange_until(self,frame,deadline):
         # Only console ops have proven previous-success reply replay caching.
         for attempt in range(self.retries+1):
             timeout=max(1,min(3000,math.ceil(self.remaining(deadline)*1000)))
             try:
-                reply=bytes(self.exchange(frame,timeout))
+                reply=self.exchange_matching(frame,timeout)
                 drained=0
                 while self.last_reply is not None and reply==self.last_reply:
                     # Prior successful console reply can remain queued after a
@@ -184,7 +199,7 @@ class BulkStream:
             for attempt in range(2):
                 frame=framing.encode(op,self.seq)
                 timeout=max(1,min(3000,math.ceil(self.remaining(deadline)*1000)))
-                reply=framing.decode_reply(bytes(self.exchange(frame,timeout)),op,self.seq)
+                reply=framing.decode_reply(self.exchange_matching(frame,timeout),op,self.seq)
                 if reply['status']==2 and attempt==0 and 0<reply['next']<0xffffffff:
                     self.seq=reply['next'];continue
                 if reply['status'] or reply['next']!=self.seq+1 or reply['chunk']!=self.maxpacket-32:
@@ -246,6 +261,14 @@ def main(argv=None):
             def event(**fields):log.write(json.dumps({'time':time.time(),**fields})+'\n');log.flush()
             dev,mps=wait_device(lambda:usb.core.find(find_all=True,idVendor=VID,idProduct=PID),args.wait,event=event)
             usb.util.claim_interface(dev,0);claimed=True # No reset, configure, detach or UART.
+            # A reply left in the IN FIFO by an earlier aborted session would make
+            # every later reply one request late. Read it away (bounded) first.
+            for _ in range(16):
+                try:
+                    stale=bytes(dev.read(0x81,mps,timeout=200))
+                except usb.core.USBTimeoutError:
+                    break
+                event(event='usb-stale-in-drained',bytes=len(stale))
             def read_reply(timeout):
                 try:return bytes(dev.read(0x81,mps,timeout=timeout))
                 except usb.core.USBTimeoutError as error:raise TimeoutError('USB IN timeout') from error
