@@ -1,8 +1,8 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "b6b144c72975b5d592f98afe97c506a5100421ee",
-    "role": "HS USB root console with verified bsdiff self-update; zlib full-res fb capture; a04-root-tweaks Setup skip; hw.product iPhone10,3; user VA max clamped to translation range."
+    "commit": "2216a4bbb398be4176e116956721a18c1f8c0be2",
+    "role": "HFS+ VNOP_CLONEFILE so installd can stage system apps"
   },
   "bootshim": {
     "repository": "https://github.com/mouseos/xnu_bootshim_benesse_a04br3",
