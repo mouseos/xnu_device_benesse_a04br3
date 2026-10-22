@@ -6,8 +6,7 @@
  * SetupVersion 11, mini-buddy flags off, no cloud configuration UI, and the
  * mobileactivationd data ark. The Activated state itself comes from the
  * bootshim ADT /chosen security-status properties (ios-sweet tools/mkadt.py).
- * Preferences go through cfprefsd (CFPreferences for user "mobile") so its
- * cache stays coherent; reboot afterwards.
+ * Preference plists are rewritten directly; reboot right after running it.
  */
 #include <CoreFoundation/CoreFoundation.h>
 #include <dirent.h>
@@ -20,17 +19,6 @@
 
 #define MOBILE 501
 static int failures;
-
-static void set_pref(const char *domain, const char *key, CFPropertyListRef value)
-{
-    CFStringRef d = CFStringCreateWithCString(NULL, domain, kCFStringEncodingUTF8);
-    CFStringRef k = CFStringCreateWithCString(NULL, key, kCFStringEncodingUTF8);
-    CFPreferencesSetValue(k, value, d, CFSTR("mobile"), kCFPreferencesAnyHost);
-    if (!CFPreferencesSynchronize(d, CFSTR("mobile"), kCFPreferencesAnyHost)) {
-        fprintf(stderr, "a04-root-tweaks: synchronize %s failed\n", domain); failures++;
-    } else printf("pref %s %s\n", domain, key);
-    CFRelease(d); CFRelease(k);
-}
 
 static CFDictionaryRef read_plist(const char *path)
 {
@@ -58,6 +46,24 @@ static int write_plist(const char *path, CFDictionaryRef dict)
     ok = ok && chown(temp, MOBILE, MOBILE) == 0 && chmod(temp, 0600) == 0 && rename(temp, path) == 0;
     if (!ok) unlink(temp);
     return ok ? 0 : -1;
+}
+
+static void set_pref(const char *domain, const char *key, CFPropertyListRef value)
+{
+    /* Direct read-modify-write of /var/mobile/Library/Preferences/DOMAIN.plist
+     * (mobile, 0600), as ios-sweet does offline. cfprefsd cannot be asked to
+     * write another user's domain from this root console; reboot afterwards. */
+    char path[512];
+    snprintf(path, sizeof(path), "/private/var/mobile/Library/Preferences/%s.plist", domain);
+    CFDictionaryRef old = read_plist(path);
+    CFMutableDictionaryRef d = old ? CFDictionaryCreateMutableCopy(NULL, 0, old) :
+        CFDictionaryCreateMutable(NULL, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+    if (old) CFRelease(old);
+    CFStringRef k = CFStringCreateWithCString(NULL, key, kCFStringEncodingUTF8);
+    CFDictionarySetValue(d, k, value);
+    if (write_plist(path, d)) { fprintf(stderr, "a04-root-tweaks: %s write failed errno=%d\n", path, errno); failures++; }
+    else printf("pref %s %s\n", domain, key);
+    CFRelease(k); CFRelease(d);
 }
 
 static void data_ark(void)
