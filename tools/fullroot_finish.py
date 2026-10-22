@@ -46,14 +46,29 @@ with open(root/'System/Library/CoreServices/SystemVersion.plist','rb') as handle
     build=plistlib.load(handle)['ProductBuildVersion']
 prefs=root/'private/var/mobile/Library/Preferences'
 prefs.mkdir(parents=True,exist_ok=True)
-migration=prefs/'com.apple.migration.plist'
-values={}
-if migration.exists():
-    with open(migration,'rb') as handle:values=plistlib.load(handle)
-values.update({'LastSystemVersion':build,
-               'DMUserDataDisposition':{'SyntheticDidUpgrade':False,'buildVersion':build}})
-migration.write_bytes(plistlib.dumps(values,fmt=plistlib.FMT_BINARY))
-os.chown(migration,501,501);os.chmod(migration,0o600)
+def merge_pref(name,values):
+    path=prefs/(name+'.plist');data={}
+    if path.exists():
+        with open(path,'rb') as handle:data=plistlib.load(handle)
+    data.update(values)
+    path.write_bytes(plistlib.dumps(data,fmt=plistlib.FMT_BINARY))
+    os.chown(path,501,501);os.chmod(path,0o600)
+merge_pref('com.apple.migration',{'LastSystemVersion':build,
+    'DMUserDataDisposition':{'SyntheticDidUpgrade':False,'buildVersion':build}})
+# Development Setup skip, also from ios-sweet sweet-root-tweaks.py (067c9b3):
+# purplebuddy SetupDone/SetupFinishedAllSteps/SetupVersion 11, mini-buddy
+# flags off, no cloud configuration UI. ForceNoBuddy is the A04BR3 addition:
+# BYSetupAssistantNeedsToRun (REA, SetupAssistant 0x1a3af1270) otherwise also
+# requires the purplebuddy.sentinel semaphore, which does not survive reboot.
+# The Activated state comes from the bootshim ADT /chosen security status.
+merge_pref('com.apple.purplebuddy',{'SetupDone':True,'SetupFinishedAllSteps':True,
+    'SetupVersion':11,'daemonizeNeedsToRun':False,'ForceNoBuddy':True})
+merge_pref('com.apple.purplebuddy.notbackedup',{name:False for name in (
+    'ShouldRunDiagnosticsMiniBuddy','ShouldRunHSA2MiniBuddy','ShouldRunKeychainSyncMiniBuddy',
+    'ShouldRunMesaMiniBuddy','ShouldRunPaymentMiniBuddy','ShouldRunStandardMiniBuddy','SilentICDPUpgrade')})
+merge_pref('com.apple.managedconfiguration.notbackedup',
+    {'LockdownActivationIndicatesCloudConfigurationAvailable':False})
+merge_pref('com.apple.springboard',{'MCForceShowCloudConfigurationUI':False})
 for directory in (prefs,prefs.parent,prefs.parent.parent):
     os.chown(directory,501,501)
 # Retain the source-built diagnostic and probe; donor launchd stays untouched.
