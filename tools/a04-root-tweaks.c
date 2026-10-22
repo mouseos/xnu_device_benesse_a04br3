@@ -104,6 +104,28 @@ static void data_ark(void)
     CFRelease(d);
 }
 
+static void mobilegestalt_recompute(void)
+{
+    /* mobileactivationd reads CertificateProductionStatus/SecurityMode via
+     * MobileGestalt, whose on-disk cache is only rebuilt on OS changes. Move
+     * the cache aside (never overwrite an earlier backup) so the bootshim ADT
+     * /chosen security status is recomputed on the next boot. */
+    const char *dir = "/private/var/containers/Shared/SystemGroup/systemgroup.com.apple.mobilegestaltcache/Library/Caches";
+    char active[512], backup[600];
+    snprintf(active, sizeof(active), "%s/com.apple.MobileGestalt.plist", dir);
+    struct stat st;
+    if (lstat(active, &st)) { printf("mobilegestalt cache absent (errno=%d); recompute pending\n", errno); return; }
+    for (unsigned i = 0; i < 100; i++) {
+        snprintf(backup, sizeof(backup), "%s/com.apple.MobileGestalt.a04br3-pre-setup-skip-%u.plist", dir, i);
+        if (lstat(backup, &st) && errno == ENOENT) {
+            if (rename(active, backup)) { fprintf(stderr, "a04-root-tweaks: MobileGestalt cache move failed errno=%d\n", errno); failures++; }
+            else printf("mobilegestalt cache moved to %s\n", backup);
+            return;
+        }
+    }
+    fputs("a04-root-tweaks: no free MobileGestalt backup name\n", stderr); failures++;
+}
+
 int main(int argc, char **argv)
 {
     if (argc != 2 || strcmp(argv[1], "setup-skip")) { fputs("usage: a04-root-tweaks setup-skip\n", stderr); return 2; }
@@ -127,6 +149,7 @@ int main(int argc, char **argv)
     set_pref("com.apple.managedconfiguration.notbackedup", "LockdownActivationIndicatesCloudConfigurationAvailable", kCFBooleanFalse);
     set_pref("com.apple.springboard", "MCForceShowCloudConfigurationUI", kCFBooleanFalse);
     data_ark();
+    mobilegestalt_recompute();
     printf("a04-root-tweaks: setup-skip %s (%d failures); reboot to apply\n", failures ? "incomplete" : "applied", failures);
     return failures ? 1 : 0;
 }
