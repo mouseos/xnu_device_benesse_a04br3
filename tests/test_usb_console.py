@@ -31,7 +31,7 @@ class USBConsole(unittest.TestCase):
   bridge=eval(compile(ast.Expression(expr(TOOLS.parent/'tests/test_uart_upload_reconcile.py','bridge')),'trusted-console','eval'),{'TOOLS':TOOLS});bridge=bridge[:bridge.index('int main(int argc')]
   bridge=bridge.replace('#define A04_CONSOLE_TEST 1','static unsigned char txout[65536];static unsigned txbytes;\n#define A04_CONSOLE_TEST 1\n#define dlopen usb_test_dlopen')
   bridge=bridge.replace('#undef digest','#undef digest\n#undef dlopen\nextern void *dlopen(const char *,int);\nvoid *usb_test_dlopen(const char *p,int f){assert(!strcmp(p,"/usr/lib/libz.1.dylib"));return dlopen("libz.so.1",f);}\nextern int open(const char *,int,...),close(int);')
-  bridge=bridge.replace('assert(!strcmp(name,"/dev/a04boot")&&flags==1);','if(strcmp(name,"/dev/a04boot"))return open(name,flags);assert(flags==1);')
+  bridge=bridge.replace('assert(!strcmp(name,"/dev/a04boot")&&flags==2);','if(strcmp(name,"/dev/a04boot"))return open(name,flags);assert(flags==2);')
   bridge=bridge.replace('int bridge_close(int fd){assert(fd==9);','int bridge_close(int fd){if(fd!=9)return close(fd);')
   bridge=bridge.replace('assert(fd==9);struct uio u=', 'if(fd==1){assert(txbytes+bytes<=sizeof(txout));memcpy(txout+txbytes,data,bytes);txbytes+=(unsigned)bytes;return (ssize_t)bytes;}assert(fd==9);struct uio u=')
   more=r'''

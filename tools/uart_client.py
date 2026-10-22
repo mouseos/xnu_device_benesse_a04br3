@@ -35,7 +35,7 @@ DATA_RECONCILE_RETRIES = 2
 GZIP_ACK_RE = re.compile(r'offset=(0|[1-9][0-9]{0,19}) raw=(0|[1-9][0-9]{0,19})\Z')
 GZIP_RAW_MAX = 128 * 1024 * 1024
 GZIP_INPUT_MAX = GZIP_RAW_MAX + 1024 * 1024
-COMMANDS = {'status', 'sample', 'boot-begin', 'boot-data', 'boot-commit', 'boot-abort', 'reboot', 'exec', 'boot-zbegin', 'boot-zdata', 'boot-zfinish', 'shell', 'boot-dcopy'}
+COMMANDS = {'status', 'sample', 'boot-begin', 'boot-data', 'boot-commit', 'boot-abort', 'reboot', 'exec', 'boot-zbegin', 'boot-zdata', 'boot-zfinish', 'shell', 'boot-dcopy', 'boot-pbegin'}
 
 
 class ProtocolError(RuntimeError):
@@ -147,7 +147,7 @@ def request_line(request_id, command, args):
         if (len(args) != 2 or not all(re.fullmatch(r'[0-9]+', a) for a in args) or
                 int(args[0]) % 512 or not int(args[1]) or int(args[1]) % 512):
             raise ValueError('boot-dcopy requires 512-aligned source and length')
-    if command == 'boot-zbegin':
+    if command in ('boot-zbegin', 'boot-pbegin'):
         if (len(args) != 3 or not re.fullmatch(r'[0-9]+', args[0]) or
                 not re.fullmatch(r'[0-9]+', args[1]) or
                 not 18 <= int(args[0]) <= GZIP_INPUT_MAX or
@@ -368,6 +368,82 @@ class Client:
             self.request('reboot')
         return detail
 
+    @staticmethod
+    def bsdiff_stream(old, new):
+        """A04BSD01 stream from bsdiff control: 'C' copy-add records and 'X' extras."""
+        import struct
+        import bsdiff4.core
+        control, diff, extra = bsdiff4.core.diff(old, new)
+        out = [b'A04BSD01', struct.pack('<Q', len(new))]
+        oldpos = newpos = dpos = epos = 0
+        for add, copy, seek in control:
+            if add:
+                if not 0 <= oldpos <= len(old) - add:
+                    raise ProtocolError('bsdiff reference outside the base image')
+                out += [b'C', struct.pack('<QI', oldpos, add), diff[dpos:dpos + add]]
+                dpos += add
+            if copy:
+                out += [b'X', struct.pack('<I', copy), extra[epos:epos + copy]]
+                epos += copy
+            newpos += add + copy
+            oldpos += add + seek
+        if newpos != len(new) or dpos != len(diff) or epos != len(extra):
+            raise ProtocolError('bsdiff control does not cover the new image')
+        stream = b''.join(out)
+        # Self-check by applying the stream to the base on the host.
+        rebuilt = bytearray(); at = 16
+        while at < len(stream):
+            kind = stream[at:at + 1]
+            if kind == b'C':
+                src, n = struct.unpack_from('<QI', stream, at + 1); at += 13
+                rebuilt += bytes((a + b) & 255 for a, b in zip(old[src:src + n], stream[at:at + n])); at += n
+            else:
+                (n,) = struct.unpack_from('<I', stream, at + 1); at += 5
+                rebuilt += stream[at:at + n]; at += n
+        if bytes(rebuilt) != new:
+            raise ProtocolError('host bsdiff self-check failed')
+        return stream
+
+    def upload_bsdiff(self, path, base, *, reboot=False):
+        """Send a gzip-compressed A04BSD01 patch against the CURRENT boot image.
+
+        The base file only guides the patch. The device reads old bytes from
+        its boot partition, and COMMIT still checks the full new image SHA,
+        framing, GPT and readback, so a wrong base fails closed.
+        """
+        import gzip
+        new = Path(path).read_bytes()
+        old = Path(base).read_bytes()
+        if not 6144 <= len(new) <= GZIP_RAW_MAX or len(new) % 2048:
+            raise ValueError('patch upload requires bounded aligned boot image')
+        packed = gzip.compress(self.bsdiff_stream(old, new), 9, mtime=0)
+        if not 18 <= len(packed) <= GZIP_INPUT_MAX:
+            raise ValueError('patch exceeds native bounds')
+        self.event(event='bsdiff-plan', packed=len(packed), total=len(new))
+        total = len(new)
+        detail = self.request('boot-pbegin', str(len(packed)), str(total), hashlib.sha256(new).hexdigest())
+        if detail != 'offset=0 raw=0':
+            raise ProtocolError('patch BEGIN ACK mismatch; upload not committed')
+        offset = raw_staged = 0
+        for start in range(0, len(packed), BLOCK_BYTES):
+            block = packed[start:start + BLOCK_BYTES]
+            next_offset = offset + len(block)
+            detail = self.request('boot-zdata', str(offset), f'{zlib.crc32(block):08x}',
+                                  base64.b64encode(block).decode('ascii'))
+            match = GZIP_ACK_RE.fullmatch(detail)
+            if not match or int(match[1]) != next_offset or not raw_staged <= int(match[2]) <= total:
+                raise ProtocolError('patch data ACK mismatch; upload not committed')
+            raw_staged, offset = int(match[2]), next_offset
+        detail = self.request('boot-zfinish')
+        if detail != f'offset={len(packed)} raw={total}':
+            raise ProtocolError('patch FINISH ACK mismatch; upload not committed')
+        detail = self.request('boot-commit')
+        if detail != 'boot-write-verified':
+            raise ProtocolError('COMMIT ACK is not boot-write-verified; reboot forbidden')
+        if reboot:
+            self.request('reboot')
+        return detail
+
     def upload_gzip(self, path, *, reboot=False):
         """Explicit optional gzip; no fallback, raw-offset guessing or new-ID replay.
 
@@ -516,6 +592,7 @@ def main(argv=None):
     upload.add_argument('image', type=Path)
     upload.add_argument('--gzip', action='store_true', help='explicit optional native gzip; no automatic fallback')
     upload.add_argument('--delta-base', type=Path, help='image currently in boot; send only changed blocks')
+    upload.add_argument('--bsdiff-base', type=Path, help='image currently in boot; send a compressed bsdiff patch')
     upload.add_argument('--reboot', action='store_true', help='reboot only after successful commit ACK')
     parser.add_argument('--tx-burst',type=int,default=1,help='UART bytes per paced write')
     parser.add_argument('--tx-interval',type=float,default=0.005,help='seconds between UART writes')
@@ -543,14 +620,14 @@ def main(argv=None):
             # The board drains RX every 1ms only while a stage is open; any
             # other request (BEGIN, status, COMMIT...) must use 1-byte pacing.
             def burst_for(data):
-                fast = (b' boot-zdata ', b' boot-data ', b' boot-dcopy ')
+                fast = (b' boot-zdata ', b' boot-data ', b' boot-dcopy ')  # pbegin stays slow
                 return options.tx_burst if any(token in data for token in fast) else 1
             client = Client(lambda data: write_paced(fd, data, burst=burst_for(data), interval=options.tx_interval), raw.read,
                             timeout=options.timeout, retries=options.retries, log=log,
                             write_deadline=lambda data, deadline: write_paced(fd, data,
                                 burst=burst_for(data), interval=options.tx_interval, deadline=deadline))
             if options.command == 'upload':
-                result = (client.upload_delta(options.image, options.delta_base, reboot=options.reboot) if options.delta_base else client.upload(options.image, reboot=options.reboot, compression='gzip' if options.gzip else 'raw'))
+                result = (client.upload_bsdiff(options.image, options.bsdiff_base, reboot=options.reboot) if options.bsdiff_base else client.upload_delta(options.image, options.delta_base, reboot=options.reboot) if options.delta_base else client.upload(options.image, reboot=options.reboot, compression='gzip' if options.gzip else 'raw'))
             elif options.command == 'exec':
                 result = client.request('exec', options.path, *options.args)
             else:

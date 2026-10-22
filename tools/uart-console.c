@@ -13,7 +13,7 @@ typedef long ssize_t;
 typedef unsigned int u32;
 typedef unsigned long long u64;
 extern int open(const char *,int,...),close(int),dup2(int,int),getpid(void),setsid(void),fork(void),execv(const char *,char *const *),waitpid(int,int *,int),ioctl(int,unsigned long,...),reboot(int);
-extern ssize_t read(int,void *,size_t),write(int,const void *,size_t);
+extern ssize_t read(int,void *,size_t),write(int,const void *,size_t),pread(int,void *,size_t,off_t);
 extern void _exit(int),sync(void);
 extern unsigned int sleep(unsigned int);
 extern off_t lseek(int,off_t,int);
@@ -90,7 +90,46 @@ static int gzip_failed(int error){
 }
 /* Kernel staging writes only. Actual boot writes are exclusively COMMIT. Any
  * partial/faulted/zero write leaves local FAILED and closes/discards staging. */
+static int stage_write(const unsigned char *data,unsigned bytes);
+/* bsdiff-style patch stream (A04BSD01): header magic+u64 new size, then records
+ * 'C' u64 old_offset u32 n + n add-bytes  -> new = old[off..]+add (mod 256)
+ * 'X' u32 n + n literal bytes. Old bytes come from the CURRENT boot partition
+ * through the staging fd. Only staging RAM changes; COMMIT still verifies the
+ * whole new image SHA/framing/GPT/readback. */
+static int patch_mode,patch_state;static unsigned patch_hdr_n;static unsigned char patch_hdr[16];
+static u64 patch_left,patch_src;
+static u64 le_bytes(const unsigned char *p,unsigned n){u64 v=0;for(unsigned i=0;i<n;i++)v|=(u64)p[i]<<(8*i);return v;}
+static int patch_consume(const unsigned char *data,unsigned bytes){
+ while(bytes){
+  if(patch_state==0||patch_state==1){
+   unsigned need=patch_state==0?16:(patch_hdr_n?(patch_hdr[0]=='C'?13:patch_hdr[0]=='X'?5:0):1);
+   if(!need)return gzip_failed(22);
+   patch_hdr[patch_hdr_n++]=*data++;bytes--;
+   if(patch_state==1&&patch_hdr_n==1){if(patch_hdr[0]!='C'&&patch_hdr[0]!='X')return gzip_failed(22);continue;}
+   if(patch_hdr_n<need)continue;
+   if(patch_state==0){
+    if(memcmp(patch_hdr,"A04BSD01",8)||le_bytes(patch_hdr+8,8)!=expected_image_bytes)return gzip_failed(22);
+    patch_state=1;
+   } else if(patch_hdr[0]=='C'){patch_src=le_bytes(patch_hdr+1,8);patch_left=le_bytes(patch_hdr+9,4);patch_state=patch_left?2:1;}
+   else {patch_left=le_bytes(patch_hdr+1,4);patch_state=patch_left?3:1;}
+   patch_hdr_n=0;continue;
+  }
+  unsigned n=bytes;if((u64)n>patch_left)n=(unsigned)patch_left;
+  if(patch_state==2){
+   unsigned char old[4096];if(n>sizeof(old))n=sizeof(old);
+   ssize_t got=pread(bootfd,old,n,(off_t)patch_src);
+   if(got!=(ssize_t)n)return gzip_failed(got<0?ERRNO:5);
+   for(unsigned i=0;i<n;i++)old[i]=(unsigned char)(old[i]+data[i]);
+   int e=stage_write(old,n);if(e)return e;patch_src+=n;
+  } else {int e=stage_write(data,n);if(e)return e;}
+  data+=n;bytes-=n;patch_left-=n;if(!patch_left)patch_state=1;
+ }
+ return 0;
+}
 static int gzip_output(const unsigned char *data,unsigned bytes){
+ return patch_mode?patch_consume(data,bytes):stage_write(data,bytes);
+}
+static int stage_write(const unsigned char *data,unsigned bytes){
  if(staged>expected_image_bytes||(u64)bytes>expected_image_bytes-staged)return gzip_failed(22);
  unsigned at=0;
  while(at<bytes){ssize_t k=write(bootfd,data+at,bytes-at);
@@ -146,8 +185,8 @@ static int decode(const char *s,unsigned char out[384]){
 }
 static int tokens(char *s,char **v,int max){int n=0;while(*s){while(*s==' '||*s=='\t')s++;if(!*s)break;if(n==max)return -1;v[n++]=s;while(*s&&*s!=' '&&*s!='\t')s++;if(*s)*s++=0;}return n;}
 static int identifier(const char *s){size_t n=strlen(s);if(!n||n>32)return 0;for(size_t i=0;i<n;i++)if(!((s[i]>='a'&&s[i]<='z')||(s[i]>='A'&&s[i]<='Z')||(s[i]>='0'&&s[i]<='9')))return 0;return 1;}
-static void boot_reset(void){gzip_release();gzip_mode=0;compressed_done=compressed_expected=0;if(bootfd>=0)close(bootfd);bootfd=-1;staged=expected_image_bytes=0;upload_broken=upload_verified=0;}
-static int bootopen(void){if(bootfd<0)bootfd=open("/dev/a04boot",1);return bootfd<0?ERRNO:0;}
+static void boot_reset(void){gzip_release();gzip_mode=0;patch_mode=0;patch_state=0;patch_hdr_n=0;compressed_done=compressed_expected=0;if(bootfd>=0)close(bootfd);bootfd=-1;staged=expected_image_bytes=0;upload_broken=upload_verified=0;}
+static int bootopen(void){if(bootfd<0)bootfd=open("/dev/a04boot",2);return bootfd<0?ERRNO:0;}
 /* Returns 1 only for an explicit reboot request, after its ACK is written. */
 /* Small explicit command shell; no donor /bin/sh dependency. Bounded output.
  * Filesystem operations are requested by the physical USB/UART
@@ -176,11 +215,11 @@ static int command(const char *line,char reply[512]){
  if(!strcmp(line,last_line)){memcpy(reply,last_reply,strlen(last_reply)+1);return 0;}
  if(!strcmp(v[1],last_id)){snprintf(reply,512,"\n!A04 %s ERR 22\n",v[1]);return 0;}
  int err=0,restart=0;char detail[320]="";
- if(!strcmp(v[2],"help")&&n==3)snprintf(detail,sizeof(detail),"status sample boot-begin boot-data boot-commit boot-abort reboot exec boot-zbegin boot-zdata boot-zfinish boot-dcopy shell");
+ if(!strcmp(v[2],"help")&&n==3)snprintf(detail,sizeof(detail),"status sample boot-begin boot-data boot-commit boot-abort reboot exec boot-zbegin boot-zdata boot-zfinish boot-pbegin boot-dcopy shell");
  else if(!strcmp(v[2],"shell")&&n>=4){err=shell_command(n-3,&v[3]);if(!err)snprintf(detail,sizeof(detail),"shell-status=0");}
  else if(!strcmp(v[2],"sample")&&n==3){if(ioctl(0,0x20007465UL,(void *)0)<0)err=ERRNO;else snprintf(detail,sizeof(detail),"tty-status-requested");}
  else if(!strcmp(v[2],"status")&&n==3){struct boot_info info={0};err=bootopen();if(!err&&ioctl(bootfd,INFO,&info)<0)err=ERRNO;if(!err)snprintf(detail,sizeof(detail),"version=%u flags=%u partition=%llu staged=%llu image=%llu",info.version,info.flags,info.partition_bytes,info.staged_bytes,info.image_bytes);}
- else if(!strcmp(v[2],"boot-zbegin")&&n==6){
+ else if((!strcmp(v[2],"boot-zbegin")||!strcmp(v[2],"boot-pbegin"))&&n==6){
   struct boot_begin b={0};u64 compressed=0;
   if(number(v[3],&compressed)||number(v[4],&b.image_bytes)||digest(v[5],b.sha256)||
      compressed<18||compressed>GZIP_INPUT_MAX||b.image_bytes<6144||b.image_bytes>GZIP_IMAGE_MAX||(b.image_bytes&2047))err=22;
@@ -192,7 +231,7 @@ static int command(const char *line,char reply[512]){
    if(!err&&(info.version!=1||info.flags||b.image_bytes>info.partition_bytes))err=16;
    if(!err&&ioctl(bootfd,BEGIN,&b)<0)err=ERRNO;
    if(err){gzip_release();if(opened_here&&bootfd>=0){close(bootfd);bootfd=-1;}}
-   else {gzip_mode=1;compressed_expected=compressed;compressed_done=0;expected_image_bytes=b.image_bytes;staged=0;upload_verified=0;snprintf(detail,sizeof(detail),"offset=0 raw=0");}
+   else {patch_mode=!strcmp(v[2],"boot-pbegin");patch_state=0;patch_hdr_n=0;patch_left=patch_src=0;gzip_mode=1;compressed_expected=compressed;compressed_done=0;expected_image_bytes=b.image_bytes;staged=0;upload_verified=0;snprintf(detail,sizeof(detail),"offset=0 raw=0");}
   }
  }
  else if(!strcmp(v[2],"boot-zdata")&&n==6){
@@ -208,6 +247,7 @@ static int command(const char *line,char reply[512]){
   else if(compressed_done!=compressed_expected)err=gzip_failed(22);
   else {if(gzip_mode==1)err=gzip_feed(0,0,1);
    if(!err&&(gzip_mode!=2&&gzip_mode!=3))err=gzip_failed(22);
+   if(!err&&patch_mode&&(patch_state!=1||patch_hdr_n))err=gzip_failed(22);
    if(!err){gzip_mode=3;snprintf(detail,sizeof(detail),"offset=%llu raw=%llu",compressed_done,staged);}
   }
  }

@@ -49,7 +49,7 @@ void *test_dlsym(void *h,const char *name){if(mode==2&&!strcmp(name,"inflate"))r
  void *p=dlsym(h,name);if(!strcmp(name,"inflate")){real_step=(int (*)(z_streamp,int))p;return (void *)step;}
  if(!strcmp(name,"inflateEnd")){real_end=(int (*)(z_streamp))p;return (void *)end;}return p;}
 int test_dlclose(void *h){unloads++;return dlclose(h);}
-int test_open(const char *path,int flags,...){assert(!strcmp(path,"/dev/a04boot")&&flags==1);opens++;return 9;}
+int test_open(const char *path,int flags,...){assert(!strcmp(path,"/dev/a04boot")&&flags==2);opens++;return 9;}
 int test_close(int fd){assert(fd==9);closes++;return 0;}
 ssize_t test_write(int fd,const void *p,size_t bytes){assert(fd==9&&output_n+bytes<=sizeof(output));
  if(mode==4){if(partial){errno=5;return -1;}partial=1;if(bytes>1)bytes=1;}

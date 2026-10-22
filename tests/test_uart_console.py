@@ -114,7 +114,7 @@ struct shared {unsigned attempts,delays[3],sleeps,commits,begins;int mode;};
 static struct shared *shared;
 static struct sockaddr_un address;
 int mockopen(const char *name,int flags,...){
- assert(!strcmp(name,"/dev/a04boot")&&flags==1);
+ assert(!strcmp(name,"/dev/a04boot")&&flags==2);
  int fd=socket(AF_UNIX,SOCK_STREAM,0);assert(fd>=0);
  assert(connect(fd,(void *)&address,sizeof(address))==0);return fd;
 }

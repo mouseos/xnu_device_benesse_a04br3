@@ -49,7 +49,7 @@ class Reconcile(unittest.TestCase):
 #include <stdarg.h>
 int *__error(void){return &errno;}
 static int partial,corrupt;static uint64_t file_offset;
-int bridge_open(const char *name,int flags,...){assert(!strcmp(name,"/dev/a04boot")&&flags==1);int e=boot_open(0,FWRITE,0,&rootproc);if(e){errno=e;return -1;}file_offset=0;return 9;}
+int bridge_open(const char *name,int flags,...){assert(!strcmp(name,"/dev/a04boot")&&flags==2);int e=boot_open(0,FWRITE,0,&rootproc);if(e){errno=e;return -1;}file_offset=0;return 9;}
 int bridge_close(int fd){assert(fd==9);return boot_close(0,0,0,&rootproc);}
 ssize_t bridge_write(int fd,const void *data,size_t bytes){
  assert(fd==9);struct uio u={file_offset,(int64_t)bytes,data,partial};

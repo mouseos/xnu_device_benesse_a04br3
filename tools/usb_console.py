@@ -58,7 +58,8 @@ class Console:
         detail=self.client.request(command,*args)
         if command=='exec' and detail!='wait-status=0':raise uart.RemoteError('native exec failed: '+detail)
         return detail
-    def upload(self,path,*,gzip=False,reboot=False,delta_base=None):
+    def upload(self,path,*,gzip=False,reboot=False,delta_base=None,bsdiff_base=None):
+        if bsdiff_base:return self.client.upload_bsdiff(path,bsdiff_base,reboot=reboot)
         if delta_base:return self.client.upload_delta(path,delta_base,reboot=reboot)
         return self.client.upload(path,reboot=reboot,compression='gzip' if gzip else 'raw')
 
@@ -232,7 +233,7 @@ def main(argv=None):
     smoke=sub.add_parser('smoke');smoke.add_argument('--reboot',action='store_true',help='explicit reboot after shell/status ACKs; no boot write')
     cmd=sub.add_parser('cmd');cmd.add_argument('command');cmd.add_argument('args',nargs=argparse.REMAINDER)
     exe=sub.add_parser('exec');exe.add_argument('path');exe.add_argument('args',nargs=argparse.REMAINDER)
-    upload=sub.add_parser('upload');upload.add_argument('image',type=Path);upload.add_argument('--gzip',action='store_true');upload.add_argument('--reboot',action='store_true')
+    upload=sub.add_parser('upload');upload.add_argument('image',type=Path);upload.add_argument('--gzip',action='store_true');upload.add_argument('--bsdiff-base',type=Path);upload.add_argument('--reboot',action='store_true')
     args=parser.parse_args(argv)
     if (args.vid,args.pid)!=(VID,PID):parser.error('only exact board project VID0e8d PID20ff supported')
     if not math.isfinite(args.wait) or not 0<=args.wait<=300 or not math.isfinite(args.timeout) or args.timeout<=0 or args.retries<0 or not math.isfinite(args.ready_wait) or not 0<=args.ready_wait<=1200:parser.error('invalid finite wait/timeout/retries')
@@ -266,7 +267,7 @@ def main(argv=None):
                 if args.reboot:console.command('reboot')
                 print(json.dumps({'smoke':'native-shell-and-status-ACKs','reboot_requested':args.reboot,'boot_write_performed':False}))
             elif args.mode=='shell':interactive(console)
-            elif args.mode=='upload':print(console.upload(args.image,gzip=args.gzip,reboot=args.reboot))
+            elif args.mode=='upload':print(console.upload(args.image,gzip=args.gzip,reboot=args.reboot,bsdiff_base=args.bsdiff_base))
             elif args.mode=='exec':print(console.command('exec',args.path,*args.args))
             else:print(console.command(args.command,*args.args))
         return 0
