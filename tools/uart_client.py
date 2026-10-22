@@ -35,7 +35,7 @@ DATA_RECONCILE_RETRIES = 2
 GZIP_ACK_RE = re.compile(r'offset=(0|[1-9][0-9]{0,19}) raw=(0|[1-9][0-9]{0,19})\Z')
 GZIP_RAW_MAX = 128 * 1024 * 1024
 GZIP_INPUT_MAX = GZIP_RAW_MAX + 1024 * 1024
-COMMANDS = {'status', 'sample', 'boot-begin', 'boot-data', 'boot-commit', 'boot-abort', 'reboot', 'exec', 'boot-zbegin', 'boot-zdata', 'boot-zfinish', 'shell'}
+COMMANDS = {'status', 'sample', 'boot-begin', 'boot-data', 'boot-commit', 'boot-abort', 'reboot', 'exec', 'boot-zbegin', 'boot-zdata', 'boot-zfinish', 'shell', 'boot-dcopy'}
 
 
 class ProtocolError(RuntimeError):
@@ -143,6 +143,10 @@ def request_line(request_id, command, args):
             raise ValueError('invalid native shell arguments')
         if len(' '.join(args).encode('ascii')) > 950:
             raise ValueError('native shell arguments too long')
+    if command == 'boot-dcopy':
+        if (len(args) != 2 or not all(re.fullmatch(r'[0-9]+', a) for a in args) or
+                int(args[0]) % 512 or not int(args[1]) or int(args[1]) % 512):
+            raise ValueError('boot-dcopy requires 512-aligned source and length')
     if command == 'boot-zbegin':
         if (len(args) != 3 or not re.fullmatch(r'[0-9]+', args[0]) or
                 not re.fullmatch(r'[0-9]+', args[1]) or
@@ -303,6 +307,67 @@ class Client:
                 self.request('reboot')
             return detail
 
+    def upload_delta(self, path, base, *, reboot=False, block=4096):
+        """Copy unchanged 512-aligned blocks from the CURRENT boot partition.
+
+        The base image only guides the plan. The kernel still verifies the
+        whole staged image SHA, framing, GPT and readback before success, so a
+        wrong base fails closed without a boot write.
+        """
+        new = Path(path).read_bytes()
+        old = Path(base).read_bytes()
+        if not new or len(new) % 512:
+            raise ValueError('delta image must be nonempty and 512-aligned')
+        index = {}
+        for at in range(0, len(old) - block + 1, 512):
+            index.setdefault(hashlib.sha1(old[at:at + block]).digest(), at)
+        ops = []
+        def add_copy(src, length):
+            if ops and ops[-1][0] == 'copy' and ops[-1][1] + ops[-1][2] == src:
+                ops[-1] = ('copy', ops[-1][1], ops[-1][2] + length)
+            else:
+                ops.append(('copy', src, length))
+        def add_data(start, end):
+            if ops and ops[-1][0] == 'data' and ops[-1][2] == start:
+                ops[-1] = ('data', ops[-1][1], end)
+            else:
+                ops.append(('data', start, end))
+        at = 0
+        while at < len(new):
+            chunk = new[at:at + block]
+            if len(chunk) == block:
+                if old[at:at + block] == chunk:
+                    add_copy(at, block); at += block; continue
+                src = index.get(hashlib.sha1(chunk).digest())
+                if src is not None and old[src:src + block] == chunk:
+                    add_copy(src, block); at += block; continue
+            add_data(at, at + len(chunk)); at += len(chunk)
+        literal = sum(op[2] - op[1] for op in ops if op[0] == 'data')
+        self.event(event='delta-plan', ops=len(ops), literal_bytes=literal, total=len(new))
+        expected = hashlib.sha256(new).hexdigest()
+        self.request('boot-begin', str(len(new)), expected)
+        offset = 0
+        for op in ops:
+            if op[0] == 'copy':
+                detail = self.request('boot-dcopy', str(op[1]), str(op[2]))
+                ack = NEXT_RE.fullmatch(detail)
+                if not ack or int(ack[1]) != offset + op[2]:
+                    raise ProtocolError('boot-dcopy ACK mismatch; upload not committed')
+                offset += op[2]
+            else:
+                for start in range(op[1], op[2], BLOCK_BYTES):
+                    piece = new[start:min(start + BLOCK_BYTES, op[2])]
+                    self.upload_block(piece, offset, len(new))
+                    offset += len(piece)
+        if offset != len(new):
+            raise ProtocolError('delta did not reproduce the image size; upload not committed')
+        detail = self.request('boot-commit')
+        if detail != 'boot-write-verified':
+            raise ProtocolError('COMMIT ACK is not boot-write-verified; reboot forbidden')
+        if reboot:
+            self.request('reboot')
+        return detail
+
     def upload_gzip(self, path, *, reboot=False):
         """Explicit optional gzip; no fallback, raw-offset guessing or new-ID replay.
 
@@ -450,6 +515,7 @@ def main(argv=None):
     upload = sub.add_parser('upload')
     upload.add_argument('image', type=Path)
     upload.add_argument('--gzip', action='store_true', help='explicit optional native gzip; no automatic fallback')
+    upload.add_argument('--delta-base', type=Path, help='image currently in boot; send only changed blocks')
     upload.add_argument('--reboot', action='store_true', help='reboot only after successful commit ACK')
     parser.add_argument('--tx-burst',type=int,default=1,help='UART bytes per paced write')
     parser.add_argument('--tx-interval',type=float,default=0.005,help='seconds between UART writes')
@@ -479,7 +545,7 @@ def main(argv=None):
                             write_deadline=lambda data, deadline: write_paced(fd, data,
                                 burst=options.tx_burst, interval=options.tx_interval, deadline=deadline))
             if options.command == 'upload':
-                result = client.upload(options.image, reboot=options.reboot, compression='gzip' if options.gzip else 'raw')
+                result = (client.upload_delta(options.image, options.delta_base, reboot=options.reboot) if options.delta_base else client.upload(options.image, reboot=options.reboot, compression='gzip' if options.gzip else 'raw'))
             elif options.command == 'exec':
                 result = client.request('exec', options.path, *options.args)
             else:

@@ -58,7 +58,8 @@ class Console:
         detail=self.client.request(command,*args)
         if command=='exec' and detail!='wait-status=0':raise uart.RemoteError('native exec failed: '+detail)
         return detail
-    def upload(self,path,*,gzip=False,reboot=False):
+    def upload(self,path,*,gzip=False,reboot=False,delta_base=None):
+        if delta_base:return self.client.upload_delta(path,delta_base,reboot=reboot)
         return self.client.upload(path,reboot=reboot,compression='gzip' if gzip else 'raw')
 
 def run_line(console,line):

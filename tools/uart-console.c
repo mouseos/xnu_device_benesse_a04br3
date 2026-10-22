@@ -26,6 +26,9 @@ extern int *__error(void);
 #define BEGIN 0x80304261UL
 #define COMMIT 0x20004262UL
 #define ABORT 0x20004263UL
+#define COPY 0x80104264UL
+struct boot_copy {u64 source,bytes;};
+_Static_assert(sizeof(struct boot_copy)==16,"boot copy ABI");
 struct boot_info {u32 version,flags;u64 partition_bytes,staged_bytes,image_bytes;};
 struct boot_begin {u64 image_bytes;unsigned char sha256[32];u64 reserved;};
 _Static_assert(sizeof(struct boot_info)==32 && sizeof(struct boot_begin)==48,"boot update ABI");
@@ -172,7 +175,7 @@ static int command(const char *line,char reply[512]){
  if(!strcmp(line,last_line)){memcpy(reply,last_reply,strlen(last_reply)+1);return 0;}
  if(!strcmp(v[1],last_id)){snprintf(reply,512,"\n!A04 %s ERR 22\n",v[1]);return 0;}
  int err=0,restart=0;char detail[320]="";
- if(!strcmp(v[2],"help")&&n==3)snprintf(detail,sizeof(detail),"status sample boot-begin boot-data boot-commit boot-abort reboot exec boot-zbegin boot-zdata boot-zfinish shell");
+ if(!strcmp(v[2],"help")&&n==3)snprintf(detail,sizeof(detail),"status sample boot-begin boot-data boot-commit boot-abort reboot exec boot-zbegin boot-zdata boot-zfinish boot-dcopy shell");
  else if(!strcmp(v[2],"shell")&&n>=4){err=shell_command(n-3,&v[3]);if(!err)snprintf(detail,sizeof(detail),"shell-status=0");}
  else if(!strcmp(v[2],"sample")&&n==3){if(ioctl(0,0x20007465UL,(void *)0)<0)err=ERRNO;else snprintf(detail,sizeof(detail),"tty-status-requested");}
  else if(!strcmp(v[2],"status")&&n==3){struct boot_info info={0};err=bootopen();if(!err&&ioctl(bootfd,INFO,&info)<0)err=ERRNO;if(!err)snprintf(detail,sizeof(detail),"version=%u flags=%u partition=%llu staged=%llu image=%llu",info.version,info.flags,info.partition_bytes,info.staged_bytes,info.image_bytes);}
@@ -208,6 +211,14 @@ static int command(const char *line,char reply[512]){
   }
  }
  else if(!strcmp(v[2],"boot-begin")&&n==5){struct boot_begin b={0};if(number(v[3],&b.image_bytes)||digest(v[4],b.sha256))err=22;else{boot_reset();err=bootopen();if(!err&&ioctl(bootfd,BEGIN,&b)<0)err=ERRNO;if(!err){expected_image_bytes=b.image_bytes;snprintf(detail,sizeof(detail),"offset=0");}else boot_reset();}}
+ else if(!strcmp(v[2],"boot-dcopy")&&n==5){u64 src=0,len=0;
+  if(number(v[3],&src)||number(v[4],&len)||!len||(src&511)||(len&511))err=22;
+  else if(bootfd<0)err=9;
+  else if(gzip_mode||upload_broken||upload_verified||!expected_image_bytes||staged>expected_image_bytes||len>expected_image_bytes-staged)err=22;
+  else {u64 done=0;while(done<len){struct boot_copy c;c.source=src+done;c.bytes=len-done>65536?65536:len-done;
+    if(ioctl(bootfd,COPY,&c)<0){err=ERRNO;upload_broken=1;break;}done+=c.bytes;staged+=c.bytes;}
+   if(!err)snprintf(detail,sizeof(detail),"offset=%llu",staged);}
+ }
  else if(!strcmp(v[2],"boot-data")&&n==5){u64 off=0;unsigned char data[384];int count=decode(v[4],data);if(number(v[3],&off)||off!=staged||count<1)err=22;else if(bootfd<0)err=9;else if(gzip_mode||upload_broken||upload_verified||!expected_image_bytes||staged>expected_image_bytes||(u64)count>expected_image_bytes-staged)err=22;else{int at=0;while(at<count){ssize_t k=write(bootfd,data+at,(size_t)(count-at));if(k<=0){err=k<0?ERRNO:5;upload_broken=1;break;}at+=(int)k;staged+=(u64)k;}if(!err)snprintf(detail,sizeof(detail),"offset=%llu",staged);}}
  else if(!strcmp(v[2],"boot-commit")&&n==3){if(bootfd<0)err=9;else if(upload_broken||(gzip_mode&&gzip_mode!=3)||!expected_image_bytes||staged!=expected_image_bytes)err=22;else if(ioctl(bootfd,COMMIT,0)<0){err=ERRNO;upload_broken=1;gzip_release();}else {upload_verified=1;snprintf(detail,sizeof(detail),"boot-write-verified");}}
  else if(!strcmp(v[2],"boot-abort")&&n==3){if(bootfd>=0){if(ioctl(bootfd,ABORT,0)<0)err=ERRNO;}boot_reset();}
