@@ -540,10 +540,15 @@ def main(argv=None):
         raw = RawLog(options.raw_log, options.baseline)
         with options.log.open('a', encoding='utf-8') as log:
             fd = open_writer(options.uart)
-            client = Client(lambda data: write_paced(fd, data, burst=options.tx_burst, interval=options.tx_interval), raw.read,
+            # The board drains RX every 1ms only while a stage is open; any
+            # other request (BEGIN, status, COMMIT...) must use 1-byte pacing.
+            def burst_for(data):
+                fast = (b' boot-zdata ', b' boot-data ', b' boot-dcopy ')
+                return options.tx_burst if any(token in data for token in fast) else 1
+            client = Client(lambda data: write_paced(fd, data, burst=burst_for(data), interval=options.tx_interval), raw.read,
                             timeout=options.timeout, retries=options.retries, log=log,
                             write_deadline=lambda data, deadline: write_paced(fd, data,
-                                burst=options.tx_burst, interval=options.tx_interval, deadline=deadline))
+                                burst=burst_for(data), interval=options.tx_interval, deadline=deadline))
             if options.command == 'upload':
                 result = (client.upload_delta(options.image, options.delta_base, reboot=options.reboot) if options.delta_base else client.upload(options.image, reboot=options.reboot, compression='gzip' if options.gzip else 'raw'))
             elif options.command == 'exec':
