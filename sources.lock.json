@@ -1,7 +1,7 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "f48771225c57120ed20fe8f402ca77658f180b3d",
+    "commit": "4fd813b6363008df25fc8c27e3775173dbae4878",
     "role": "MT8167 USB root console (BSP PHY qualifiers, prompt address), verified delta boot staging, existing verified boot writer. USB hardware verification pending."
   },
   "bootshim": {
