@@ -150,15 +150,75 @@ static void rerun_migration(void)
     fputs("a04-root-tweaks: no free migration backup name\n", stderr); failures++;
 }
 
+static void move_aside(const char *path, const char *tag)
+{
+    char backup[1024];
+    struct stat st;
+    for (unsigned i = 0; i < 100; i++) {
+        snprintf(backup, sizeof(backup), "%s.a04br3-%s-%u", path, tag, i);
+        if (lstat(backup, &st) && errno == ENOENT) {
+            if (rename(path, backup)) { fprintf(stderr, "a04-root-tweaks: move %s failed errno=%d\n", path, errno); failures++; }
+            else printf("moved %s to %s\n", path, backup);
+            return;
+        }
+    }
+    fprintf(stderr, "a04-root-tweaks: no free backup name for %s\n", path); failures++;
+}
+
+static void rebuild_launchservices(void)
+{
+    /* installd resolves app extension points through EXExtensionPointCatalog,
+     * which reads the NSExtensionSDK definitions that lsd registered from the
+     * framework Info.plists. On this device the database lacked e.g.
+     * UserNotificationsUI's com.apple.usernotifications.content-extension and
+     * DiagnosticExtensions' com.apple.diagnosticextensions-service although
+     * both Info.plists match the IPSW, so Mail/Shortcuts/Tips/News failed
+     * installd preflight. Move lsd's stores aside so the next boot rebuilds
+     * the whole database. The data container UUID differs per device, so
+     * every InternalDaemon container is checked. */
+    const char *root = "/private/var/mobile/Containers/Data/InternalDaemon";
+    DIR *top = opendir(root);
+    unsigned found = 0;
+    if (!top) { fprintf(stderr, "a04-root-tweaks: %s errno=%d\n", root, errno); failures++; return; }
+    struct dirent *e;
+    while ((e = readdir(top)) != NULL) {
+        if (e->d_name[0] == '.') continue;
+        char caches[512];
+        snprintf(caches, sizeof(caches), "%s/%s/Library/Caches", root, e->d_name);
+        DIR *d = opendir(caches);
+        if (!d) continue;
+        struct dirent *f;
+        while ((f = readdir(d)) != NULL) {
+            size_t n = strlen(f->d_name);
+            if (n < 8 || strcmp(f->d_name + n - 8, ".csstore")) continue;
+            if (strncmp(f->d_name, "com.apple.LaunchServices-", 25) &&
+                strncmp(f->d_name, "SystemDataOnly-com.apple.LaunchServices-", 40)) continue;
+            char path[800];
+            snprintf(path, sizeof(path), "%s/%s", caches, f->d_name);
+            move_aside(path, "lsrebuild");
+            found++;
+        }
+        closedir(d);
+    }
+    closedir(top);
+    if (!found) printf("no LaunchServices store found; rebuild pending\n");
+}
+
 int main(int argc, char **argv)
 {
+    if (argc == 2 && !strcmp(argv[1], "rebuild-launchservices")) {
+        if (geteuid() != 0) { fputs("a04-root-tweaks: root required\n", stderr); return 1; }
+        rebuild_launchservices();
+        printf("a04-root-tweaks: rebuild-launchservices %s (%d failures); reboot to apply\n", failures ? "incomplete" : "applied", failures);
+        return failures ? 1 : 0;
+    }
     if (argc == 2 && !strcmp(argv[1], "rerun-migration")) {
         if (geteuid() != 0) { fputs("a04-root-tweaks: root required\n", stderr); return 1; }
         rerun_migration();
         printf("a04-root-tweaks: rerun-migration %s (%d failures); reboot to apply\n", failures ? "incomplete" : "applied", failures);
         return failures ? 1 : 0;
     }
-    if (argc != 2 || strcmp(argv[1], "setup-skip")) { fputs("usage: a04-root-tweaks setup-skip|rerun-migration\n", stderr); return 2; }
+    if (argc != 2 || strcmp(argv[1], "setup-skip")) { fputs("usage: a04-root-tweaks setup-skip|rerun-migration|rebuild-launchservices\n", stderr); return 2; }
     if (geteuid() != 0) { fputs("a04-root-tweaks: root required\n", stderr); return 1; }
     int eleven = 11; CFNumberRef version = CFNumberCreate(NULL, kCFNumberIntType, &eleven);
     set_pref("com.apple.purplebuddy", "SetupDone", kCFBooleanTrue);
