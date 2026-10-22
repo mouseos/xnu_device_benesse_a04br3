@@ -31,8 +31,15 @@ extern kern_return_t IOConnectCallScalarMethod(mach_port_t,uint32_t,const uint64
 static int write_all(int fd,const void *data,size_t bytes)
 {
     const unsigned char *p=data;
+    /* A console stream (USB console pipe/tty) may be non-blocking and report
+     * EAGAIN while the host drains it. Wait for progress, bounded to ~60s
+     * without any byte accepted; real errors still fail. */
+    unsigned stalled=0;
     while(bytes){ssize_t n=write(fd,p,bytes);if(n<0 && errno==EINTR)continue;
-        if(n<=0)return -1;p+=(size_t)n;bytes-=(size_t)n;}
+        if((n<0 && (errno==EAGAIN || errno==EWOULDBLOCK || errno==ENOBUFS)) || n==0){
+            if(++stalled>30000)return -1;usleep(2000);continue;
+        }
+        if(n<0)return -1;stalled=0;p+=(size_t)n;bytes-=(size_t)n;}
     return 0;
 }
 static int frame_id_valid(const char *id)
