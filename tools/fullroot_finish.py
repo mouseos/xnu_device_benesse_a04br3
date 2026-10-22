@@ -36,6 +36,26 @@ for directory in ('containers','containers/Bundle','containers/Bundle/Applicatio
     if not path.exists():
         path.mkdir(mode=0o755);os.chown(path,0,0)
 os.chmod(root/'private/var/tmp',0o1777)
+# Data migration: record the image's own build as already migrated, as
+# dipa-studio/ios-sweet tools/sweet-root-tweaks.py (067c9b3) merge_pref
+# 'com.apple.migration' does. Otherwise DataMigrator runs on first boot (about
+# an hour on this SoC behind the progress bar) and SystemAppMigrator leaves
+# staged system-app placeholders whose Settings specifiers (Wallet) have no
+# icon. On iOS the CurrentHost domain is the plain mobile preferences plist.
+with open(root/'System/Library/CoreServices/SystemVersion.plist','rb') as handle:
+    build=plistlib.load(handle)['ProductBuildVersion']
+prefs=root/'private/var/mobile/Library/Preferences'
+prefs.mkdir(parents=True,exist_ok=True)
+migration=prefs/'com.apple.migration.plist'
+values={}
+if migration.exists():
+    with open(migration,'rb') as handle:values=plistlib.load(handle)
+values.update({'LastSystemVersion':build,
+               'DMUserDataDisposition':{'SyntheticDidUpgrade':False,'buildVersion':build}})
+migration.write_bytes(plistlib.dumps(values,fmt=plistlib.FMT_BINARY))
+os.chown(migration,501,501);os.chmod(migration,0o600)
+for directory in (prefs,prefs.parent,prefs.parent.parent):
+    os.chown(directory,501,501)
 # Retain the source-built diagnostic and probe; donor launchd stays untouched.
 for source,target in [('a04br3-init','usr/local/libexec/a04br3-diagnostic-init'),('dynamic-probe','usr/bin/a04br3-dynamic-probe')]:
     path=root/target;path.parent.mkdir(parents=True,exist_ok=True)
