@@ -22,6 +22,8 @@ def frame_bytes(width,height):return len(header_for(width,height))+width*height*
 HEADER=header_for(200,320)
 FRAME_BYTES=frame_bytes(200,320)
 BEGIN_RE=re.compile(rb'BEGIN (200|400|800) (320|640|1280) P6 ([1-9][0-9]{0,6})\Z')
+# Z6: DATA/END carry the zlib stream; END SHA256 covers the decompressed PPM.
+BEGINZ_RE=re.compile(rb'BEGIN (200|400|800) (320|640|1280) Z6 ([1-9][0-9]{0,6}) ([1-9][0-9]{0,6})\Z')
 ID_RE=re.compile(r'[0-9a-f]{32}\Z')
 DATA_RE=re.compile(rb'DATA (0|[1-9][0-9]{0,6}) ([1-9][0-9]{0,2}) ([0-9a-f]{8}) ([A-Za-z0-9+/]+={0,2})\Z')
 DATA_HEADER_RE=re.compile(rb'DATA (0|[1-9][0-9]{0,6}) ([1-9][0-9]{0,2}) ([0-9a-f]{8}) (.*)\Z')
@@ -132,12 +134,19 @@ def recovered_lines(chunks,prefix):
 def decode_chunks(chunks,frame_id,*,recover_interleaved=False):
     if not ID_RE.fullmatch(frame_id):raise CaptureError('frame ID must be 32 lowercase hex digits')
     prefix=b'!A04FB1 '+frame_id.encode()+b' '
-    started=False;complete=False;image=bytearray();total=FRAME_BYTES;header=HEADER
+    started=False;complete=False;image=bytearray();total=FRAME_BYTES;header=HEADER;raw_total=None
     lines=recovered_lines(chunks,prefix) if recover_interleaved else bounded_lines(chunks,prefix)
     for line in lines:
         if not line.startswith(prefix):continue  # Native logs/echo/other frame IDs.
         if complete:raise CaptureError('extra selected record after END (reused frame ID)')
         body=line[len(prefix):]
+        beginz=BEGINZ_RE.fullmatch(body)
+        if beginz:
+            size=(int(beginz[1]),int(beginz[2]))
+            if size not in SIZES or int(beginz[3])!=frame_bytes(*size):raise CaptureError('unsupported preview size')
+            if started:raise CaptureError('duplicate BEGIN')
+            raw_total=frame_bytes(*size);total=int(beginz[4]);header=header_for(*size)
+            started=True;continue
         begin=BEGIN_RE.fullmatch(body)
         if begin:
             size=(int(begin[1]),int(begin[2]))
@@ -159,6 +168,10 @@ def decode_chunks(chunks,frame_id,*,recover_interleaved=False):
         match=END_RE.fullmatch(body)
         if match:
             if int(match[1])!=total or len(image)!=total:raise CaptureError('incomplete frame')
+            if raw_total is not None:
+                try:image=bytearray(zlib.decompress(bytes(image)))
+                except zlib.error as error:raise CaptureError('invalid zlib stream') from error
+                if len(image)!=raw_total:raise CaptureError('decompressed size mismatch')
             if hashlib.sha256(image).hexdigest().encode()!=match[2]:raise CaptureError('frame SHA256 mismatch')
             if not image.startswith(header):raise CaptureError('unexpected P6 header')
             complete=True;continue

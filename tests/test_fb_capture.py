@@ -115,7 +115,7 @@ int main(int argc,char **argv){
         with tempfile.TemporaryDirectory() as d:
             p=Path(d);public_stubs(p);(p/'test.c').write_text(code)
             subprocess.run(['clang','-std=c11','-O1','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',
-                            '-I',str(p),'-I',str(TOOLS),str(p/'test.c'),'-o',str(p/'test')],check=True)
+                            '-I',str(p),'-I',str(TOOLS),str(p/'test.c'),'-o',str(p/'test'),'-lz'],check=True)
             for mode in range(33):
                 output=p/f'capture-{mode}.ppm'
                 if mode==19:output.write_bytes(b'keep-existing')
@@ -188,6 +188,7 @@ int main(void){unsigned char src[3200],dst[2402];memset(src,0,3200);memset(dst,0
             subprocess.run([str(p/'pure')],check=True)
             # CoreFoundation/mach stubs ONLY; no IOSurface headers supplied.
             # This target compile is not an actual Apple SDK link.
+            (p/'zlib.h').write_text('typedef unsigned long uLong,uLongf;typedef unsigned char Bytef;\n#define Z_OK 0\nextern uLong compressBound(uLong);extern int compress2(Bytef*,uLongf*,const Bytef*,uLong,int);\n')
             (p/'errno.h').write_text('extern int *__error(void);\n#define errno (*__error())\n#define EINTR 4\n#define EAGAIN 35\n#define EWOULDBLOCK EAGAIN\n#define ENOBUFS 55\n')
             (p/'fcntl.h').write_text('#define O_WRONLY 1\n#define O_CREAT 0x200\n#define O_EXCL 0x800\nextern int open(const char*,int,...);\n')
             (p/'stdio.h').write_text('#include <stddef.h>\ntypedef struct StubFILE FILE;extern FILE *stderr;extern int fprintf(FILE*,const char*,...);extern int snprintf(char*,size_t,const char*,...);\n')

@@ -19,12 +19,13 @@ def main(argv=None):
     p.add_argument('--output',type=Path,required=True)
     p.add_argument('--scale',choices=('1','2','4'),default='1')
     p.add_argument('--timeout',type=float,default=180)
+    p.add_argument('--no-zlib',action='store_true',help='uncompressed P6 records (helper without z support)')
     a=p.parse_args(argv)
     if a.output.exists():raise SystemExit('output exists')
     frame=uuid.uuid4().hex
     transcript=a.output.with_name(a.output.name+'.usb.txt')
     cmd=[sys.executable,str(TOOLS/'usb_console.py'),'--wait','10','--timeout',str(int(a.timeout)),
-         'cmd','exec',HELPER,'--uart-preview',frame,a.scale]
+         'cmd','exec',HELPER,'--uart-preview',frame,a.scale]+([] if a.no_zlib else ['z'])
     with transcript.open('xb') as out:
         r=subprocess.run(cmd,stdout=out,stderr=subprocess.STDOUT,timeout=a.timeout+30)
     data=transcript.read_bytes()

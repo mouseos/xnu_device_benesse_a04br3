@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <zlib.h>
 #define A04_FB_DECLARE_IOSURFACE 1
 #include "a04-fb-capture.h"
 #include "a04-fb-capture-digest.h"
@@ -57,21 +58,33 @@ static void b64(const unsigned char *p,size_t n,char *out)
         out[at++]=i+1<n?table[((b&15)<<2)|(c>>6)]:'=';out[at++]=i+2<n?table[c&63]:'=';}
     out[at]=0;
 }
-static int preview_emit(const char *id,const unsigned char *ppm,size_t bytes,unsigned width,unsigned height)
+/* Records carry "data" (the PPM, or its zlib stream when raw!=0). END always
+ * hashes the uncompressed PPM so the host verifies the decoded image. */
+static int preview_emit_records(const char *id,const unsigned char *data,size_t bytes,unsigned width,unsigned height,
+    const unsigned char *raw,size_t raw_bytes)
 {
     char line[640],encoded[513],hex[65];unsigned char digest[32];
-    a04_fb_sha256(ppm,bytes,digest);
+    a04_fb_sha256(raw?raw:data,raw?raw_bytes:bytes,digest);
     static const char digits[]="0123456789abcdef";
     for(unsigned i=0;i<32;i++){hex[2*i]=digits[digest[i]>>4];hex[2*i+1]=digits[digest[i]&15];}hex[64]=0;
-    int n=snprintf(line,sizeof(line),"\n!A04FB1 %s BEGIN %u %u P6 %zu\n",id,width,height,bytes);
+    int n=raw?snprintf(line,sizeof(line),"\n!A04FB1 %s BEGIN %u %u Z6 %zu %zu\n",id,width,height,raw_bytes,bytes):
+        snprintf(line,sizeof(line),"\n!A04FB1 %s BEGIN %u %u P6 %zu\n",id,width,height,bytes);
     if(n<0 || (size_t)n>=sizeof(line) || write_all(1,line,(size_t)n))return -1;
     for(size_t offset=0;offset<bytes;offset+=384){
-        size_t count=bytes-offset;if(count>384)count=384;b64(ppm+offset,count,encoded);
-        n=snprintf(line,sizeof(line),"\n!A04FB1 %s DATA %zu %zu %08x %s\n",id,offset,count,a04_fb_crc32(ppm+offset,count),encoded);
+        size_t count=bytes-offset;if(count>384)count=384;b64(data+offset,count,encoded);
+        n=snprintf(line,sizeof(line),"\n!A04FB1 %s DATA %zu %zu %08x %s\n",id,offset,count,a04_fb_crc32(data+offset,count),encoded);
         if(n<0 || (size_t)n>=sizeof(line) || write_all(1,line,(size_t)n))return -1;
     }
     n=snprintf(line,sizeof(line),"\n!A04FB1 %s END %zu %s\n",id,bytes,hex);
     return n<0 || (size_t)n>=sizeof(line) || write_all(1,line,(size_t)n)?-1:0;
+}
+static int preview_emit(const char *id,const unsigned char *ppm,size_t bytes,unsigned width,unsigned height,int compressed)
+{
+    if(!compressed)return preview_emit_records(id,ppm,bytes,width,height,NULL,0);
+    uLongf zbytes=compressBound((uLong)bytes);unsigned char *z=malloc(zbytes);
+    if(!z)return -1;
+    int r=compress2(z,&zbytes,ppm,(uLong)bytes,6)==Z_OK?preview_emit_records(id,z,zbytes,width,height,ppm,bytes):-1;
+    free(z);return r;
 }
 int main(int argc,char **argv)
 {
@@ -80,12 +93,14 @@ int main(int argc,char **argv)
     size_t bytes=0;uint32_t seed=0;const char *failure="capture failed";
     /* Optional preview scale: 4 (default 200x320), 2 (400x640), 1 (full panel). */
     unsigned scale=4;
-    if(argc==4 && argv[3] && argv[3][0] && !argv[3][1] && (argv[3][0]=='1'||argv[3][0]=='2'||argv[3][0]=='4'))scale=(unsigned)(argv[3][0]-'0');
-    else if(argc==4)scale=0;
-    int uart_preview=(argc==3 || (argc==4 && scale)) && !strcmp(argv[1],"--uart-preview") && frame_id_valid(argv[2]);
+    /* Optional 5th argument "z": zlib-compressed records (Z6) for slow consoles. */
+    int compressed=argc==5 && argv[4] && !strcmp(argv[4],"z");
+    if((argc==4 || compressed) && argv[3] && argv[3][0] && !argv[3][1] && (argv[3][0]=='1'||argv[3][0]=='2'||argv[3][0]=='4'))scale=(unsigned)(argv[3][0]-'0');
+    else if(argc==4 || argc==5)scale=0;
+    int uart_preview=(argc==3 || ((argc==4 || compressed) && scale)) && !strcmp(argv[1],"--uart-preview") && frame_id_valid(argv[2]);
     const unsigned pw=A04_FB_WIDTH/(scale?scale:4),ph=A04_FB_HEIGHT/(scale?scale:4);
     if(!uart_preview && (argc!=2 || !argv[1] || argv[1][0]!='/')){
-        fprintf(stderr,"usage: a04-fb-capture /absolute/new-file.ppm | --uart-preview LOWERCASE32HEXID [1|2|4]\n");return 2;
+        fprintf(stderr,"usage: a04-fb-capture /absolute/new-file.ppm | --uart-preview LOWERCASE32HEXID [1|2|4 [z]]\n");return 2;
     }
     CFMutableDictionaryRef matching=IOServiceMatching("AppleCLCD");
     if(!matching){failure="AppleCLCD matching unavailable";goto done;}
@@ -142,7 +157,7 @@ int main(int argc,char **argv)
             unsigned char *rgb=preview+(size_t)header_bytes+(y*pw+x)*3;
             rgb[0]=pixel[2];rgb[1]=pixel[1];rgb[2]=pixel[0];
         }
-        if(preview_emit(argv[2],preview,total,pw,ph)){failure="preview stream write failed";goto done;}
+        if(preview_emit(argv[2],preview,total,pw,ph,compressed)){failure="preview stream write failed";goto done;}
         fprintf(stderr,"A04FB preview OK frame=%s width=%u height=%u consistency=best-effort\n",argv[2],pw,ph);
         result=0;goto done;
     }
