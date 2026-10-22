@@ -113,6 +113,11 @@ int main(int argc, char **argv)
     set_pref("com.apple.purplebuddy", "SetupFinishedAllSteps", kCFBooleanTrue);
     set_pref("com.apple.purplebuddy", "SetupVersion", version);
     set_pref("com.apple.purplebuddy", "daemonizeNeedsToRun", kCFBooleanFalse);
+    /* SetupAssistant BYSetupAssistantNeedsToRun (REA 0x1a3af1270) returns NO
+     * first when BYPreferencesController ForceNoBuddy is set; otherwise it
+     * requires the purplebuddy.sentinel POSIX semaphore, which Setup creates
+     * at completion and which does not survive a reboot. */
+    set_pref("com.apple.purplebuddy", "ForceNoBuddy", kCFBooleanTrue);
     CFRelease(version);
     static const char *mini[] = {"ShouldRunDiagnosticsMiniBuddy", "ShouldRunHSA2MiniBuddy",
         "ShouldRunKeychainSyncMiniBuddy", "ShouldRunMesaMiniBuddy", "ShouldRunPaymentMiniBuddy",
