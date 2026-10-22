@@ -1,7 +1,7 @@
 {
   "kernel": {
     "repository": "https://github.com/mouseos/xnu_kernel_benesse_a04br3",
-    "commit": "74cb2d883db246c3967fadb224f3fa5963090862",
+    "commit": "7e70f169197719a0f13e3dea2757a84c6c933c7d",
     "role": "Opt-in MT8167 MUSB USB root command console, existing verified boot updater and USB ACK-drained native reboot; USB hardware verification pending."
   },
   "bootshim": {
