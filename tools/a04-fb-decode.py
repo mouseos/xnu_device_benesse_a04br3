@@ -15,17 +15,22 @@ import sys
 import tempfile
 import zlib
 
-HEADER=b'P6\n200 320\n255\n'
-FRAME_BYTES=len(HEADER)+200*320*3
+# Preview scale 4 (default, 200x320), 2 (400x640) or 1 (full 800x1280).
+SIZES=((200,320),(400,640),(800,1280))
+def header_for(width,height):return b'P6\n%d %d\n255\n'%(width,height)
+def frame_bytes(width,height):return len(header_for(width,height))+width*height*3
+HEADER=header_for(200,320)
+FRAME_BYTES=frame_bytes(200,320)
+BEGIN_RE=re.compile(rb'BEGIN (200|400|800) (320|640|1280) P6 ([1-9][0-9]{0,6})\Z')
 ID_RE=re.compile(r'[0-9a-f]{32}\Z')
-DATA_RE=re.compile(rb'DATA (0|[1-9][0-9]{0,5}) ([1-9][0-9]{0,2}) ([0-9a-f]{8}) ([A-Za-z0-9+/]+={0,2})\Z')
-DATA_HEADER_RE=re.compile(rb'DATA (0|[1-9][0-9]{0,5}) ([1-9][0-9]{0,2}) ([0-9a-f]{8}) (.*)\Z')
+DATA_RE=re.compile(rb'DATA (0|[1-9][0-9]{0,6}) ([1-9][0-9]{0,2}) ([0-9a-f]{8}) ([A-Za-z0-9+/]+={0,2})\Z')
+DATA_HEADER_RE=re.compile(rb'DATA (0|[1-9][0-9]{0,6}) ([1-9][0-9]{0,2}) ([0-9a-f]{8}) (.*)\Z')
 BASE64_RE=re.compile(rb'[A-Za-z0-9+/]+={0,2}\Z')
 MAX_INTERLEAVED_LINES=32
 MAX_INTERLEAVED_BYTES=16384
 MAX_RECOVERED_CHUNKS=32
 MAX_RECOVERY_CANDIDATES=16384
-END_RE=re.compile(rb'END ([1-9][0-9]{0,5}) ([0-9a-f]{64})\Z')
+END_RE=re.compile(rb'END ([1-9][0-9]{0,6}) ([0-9a-f]{64})\Z')
 
 class CaptureError(ValueError):
     pass
@@ -127,20 +132,24 @@ def recovered_lines(chunks,prefix):
 def decode_chunks(chunks,frame_id,*,recover_interleaved=False):
     if not ID_RE.fullmatch(frame_id):raise CaptureError('frame ID must be 32 lowercase hex digits')
     prefix=b'!A04FB1 '+frame_id.encode()+b' '
-    started=False;complete=False;image=bytearray()
+    started=False;complete=False;image=bytearray();total=FRAME_BYTES;header=HEADER
     lines=recovered_lines(chunks,prefix) if recover_interleaved else bounded_lines(chunks,prefix)
     for line in lines:
         if not line.startswith(prefix):continue  # Native logs/echo/other frame IDs.
         if complete:raise CaptureError('extra selected record after END (reused frame ID)')
         body=line[len(prefix):]
-        if body==f'BEGIN 200 320 P6 {FRAME_BYTES}'.encode():
+        begin=BEGIN_RE.fullmatch(body)
+        if begin:
+            size=(int(begin[1]),int(begin[2]))
+            if size not in SIZES or int(begin[3])!=frame_bytes(*size):raise CaptureError('unsupported preview size')
             if started:raise CaptureError('duplicate BEGIN')
+            total=frame_bytes(*size);header=header_for(*size)
             started=True;continue
         if not started:raise CaptureError('selected data without valid BEGIN')
         match=DATA_RE.fullmatch(body)
         if match:
             offset,count=int(match[1]),int(match[2])
-            if offset!=len(image) or count!=min(384,FRAME_BYTES-len(image)) or not count:
+            if offset!=len(image) or count!=min(384,total-len(image)) or not count:
                 raise CaptureError('chunk offset/length mismatch or duplicate chunk')
             try:block=base64.b64decode(match[4],validate=True)
             except ValueError as error:raise CaptureError('invalid base64') from error
@@ -149,9 +158,9 @@ def decode_chunks(chunks,frame_id,*,recover_interleaved=False):
             image.extend(block);continue
         match=END_RE.fullmatch(body)
         if match:
-            if int(match[1])!=FRAME_BYTES or len(image)!=FRAME_BYTES:raise CaptureError('incomplete frame')
+            if int(match[1])!=total or len(image)!=total:raise CaptureError('incomplete frame')
             if hashlib.sha256(image).hexdigest().encode()!=match[2]:raise CaptureError('frame SHA256 mismatch')
-            if not image.startswith(HEADER):raise CaptureError('unexpected P6 header')
+            if not image.startswith(header):raise CaptureError('unexpected P6 header')
             complete=True;continue
         raise CaptureError('malformed selected record')
     if not complete:raise CaptureError('no complete selected frame')
@@ -178,11 +187,13 @@ def decode_log(path,frame_id,start_offset=0,expected_identity=None,*,recover_int
         return decode_chunks(chunks(),frame_id,recover_interleaved=recover_interleaved)
 
 def png_from_ppm(ppm):
-    if len(ppm)!=FRAME_BYTES or not ppm.startswith(HEADER):raise CaptureError('invalid bounded P6 image')
-    pixels=ppm[len(HEADER):]
-    raw=b''.join(b'\0'+pixels[y*600:(y+1)*600] for y in range(320))
+    for width,height in SIZES:
+        if len(ppm)==frame_bytes(width,height) and ppm.startswith(header_for(width,height)):break
+    else:raise CaptureError('invalid bounded P6 image')
+    pixels=ppm[len(header_for(width,height)):];row=width*3
+    raw=b''.join(b'\0'+pixels[y*row:(y+1)*row] for y in range(height))
     def chunk(kind,data):return struct.pack('>I',len(data))+kind+data+struct.pack('>I',zlib.crc32(kind+data)&0xffffffff)
-    return b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',200,320,8,2,0,0,0))+chunk(b'IDAT',zlib.compress(raw))+chunk(b'IEND',b'')
+    return b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',width,height,8,2,0,0,0))+chunk(b'IDAT',zlib.compress(raw))+chunk(b'IEND',b'')
 
 def publish_image(path,data):
     """Publish a fully verified image atomically, without replacing any name."""

@@ -57,13 +57,13 @@ static void b64(const unsigned char *p,size_t n,char *out)
         out[at++]=i+1<n?table[((b&15)<<2)|(c>>6)]:'=';out[at++]=i+2<n?table[c&63]:'=';}
     out[at]=0;
 }
-static int preview_emit(const char *id,const unsigned char *ppm,size_t bytes)
+static int preview_emit(const char *id,const unsigned char *ppm,size_t bytes,unsigned width,unsigned height)
 {
     char line[640],encoded[513],hex[65];unsigned char digest[32];
     a04_fb_sha256(ppm,bytes,digest);
     static const char digits[]="0123456789abcdef";
     for(unsigned i=0;i<32;i++){hex[2*i]=digits[digest[i]>>4];hex[2*i+1]=digits[digest[i]&15];}hex[64]=0;
-    int n=snprintf(line,sizeof(line),"\n!A04FB1 %s BEGIN 200 320 P6 %zu\n",id,bytes);
+    int n=snprintf(line,sizeof(line),"\n!A04FB1 %s BEGIN %u %u P6 %zu\n",id,width,height,bytes);
     if(n<0 || (size_t)n>=sizeof(line) || write_all(1,line,(size_t)n))return -1;
     for(size_t offset=0;offset<bytes;offset+=384){
         size_t count=bytes-offset;if(count>384)count=384;b64(ppm+offset,count,encoded);
@@ -78,9 +78,14 @@ int main(int argc,char **argv)
     mach_port_t service=MACH_PORT_NULL,connection=MACH_PORT_NULL,surface_port=MACH_PORT_NULL;
     IOSurfaceRef surface=NULL;unsigned char *snapshot=NULL,*preview=NULL;int locked=0,fd=-1,created=0,result=1;
     size_t bytes=0;uint32_t seed=0;const char *failure="capture failed";
-    int uart_preview=argc==3 && !strcmp(argv[1],"--uart-preview") && frame_id_valid(argv[2]);
+    /* Optional preview scale: 4 (default 200x320), 2 (400x640), 1 (full panel). */
+    unsigned scale=4;
+    if(argc==4 && argv[3] && argv[3][0] && !argv[3][1] && (argv[3][0]=='1'||argv[3][0]=='2'||argv[3][0]=='4'))scale=(unsigned)(argv[3][0]-'0');
+    else if(argc==4)scale=0;
+    int uart_preview=(argc==3 || (argc==4 && scale)) && !strcmp(argv[1],"--uart-preview") && frame_id_valid(argv[2]);
+    const unsigned pw=A04_FB_WIDTH/(scale?scale:4),ph=A04_FB_HEIGHT/(scale?scale:4);
     if(!uart_preview && (argc!=2 || !argv[1] || argv[1][0]!='/')){
-        fprintf(stderr,"usage: a04-fb-capture /absolute/new-file.ppm | --uart-preview LOWERCASE32HEXID\n");return 2;
+        fprintf(stderr,"usage: a04-fb-capture /absolute/new-file.ppm | --uart-preview LOWERCASE32HEXID [1|2|4]\n");return 2;
     }
     CFMutableDictionaryRef matching=IOServiceMatching("AppleCLCD");
     if(!matching){failure="AppleCLCD matching unavailable";goto done;}
@@ -104,7 +109,7 @@ int main(int argc,char **argv)
        IOSurfaceGetPixelFormat(surface),IOSurfaceGetBytesPerElement(surface),IOSurfaceGetAllocSize(surface),&bytes)){
         failure="panel IOSurface layout rejected";goto done;
     }
-    snapshot=malloc(uart_preview?200*320*4:bytes);if(!snapshot){failure="snapshot allocation failed";goto done;}
+    snapshot=malloc(uart_preview?(size_t)pw*ph*4:bytes);if(!snapshot){failure="snapshot allocation failed";goto done;}
     if(IOSurfaceLock(surface,kIOSurfaceLockReadOnly,&seed)!=KERN_SUCCESS){failure="panel readonly lock failed";goto done;}
     locked=1;
     const void *base=IOSurfaceGetBaseAddress(surface);
@@ -115,7 +120,7 @@ int main(int argc,char **argv)
     const volatile uint32_t *pixels=(const volatile uint32_t *)base;
     uint32_t *owned=(uint32_t *)snapshot;
     if(uart_preview){
-        for(size_t y=0;y<320;y++)for(size_t x=0;x<200;x++)owned[y*200+x]=pixels[y*4*800+x*4];
+        for(size_t y=0;y<ph;y++)for(size_t x=0;x<pw;x++)owned[y*pw+x]=pixels[y*scale*A04_FB_WIDTH+x*scale];
     }else for(size_t i=0;i<bytes/4;i++)owned[i]=pixels[i];
     if(IOSurfaceUnlock(surface,kIOSurfaceLockReadOnly,&seed)!=KERN_SUCCESS){
         locked=0;failure="panel readonly unlock failed";goto done;
@@ -126,17 +131,19 @@ int main(int argc,char **argv)
     mach_port_deallocate(mach_task_self(),surface_port);surface_port=MACH_PORT_NULL;
     IOServiceClose(connection);connection=MACH_PORT_NULL;IOObjectRelease(service);service=MACH_PORT_NULL;
     if(uart_preview){
-        static const char preview_header[]="P6\n200 320\n255\n";
-        size_t total=sizeof(preview_header)-1+200*320*3;
+        char preview_header[32];
+        int header_bytes=snprintf(preview_header,sizeof(preview_header),"P6\n%u %u\n255\n",pw,ph);
+        if(header_bytes<=0 || (size_t)header_bytes>=sizeof(preview_header)){failure="preview header failed";goto done;}
+        size_t total=(size_t)header_bytes+(size_t)pw*ph*3;
         preview=malloc(total);if(!preview){failure="preview allocation failed";goto done;}
-        memcpy(preview,preview_header,sizeof(preview_header)-1);
-        for(size_t y=0;y<320;y++)for(size_t x=0;x<200;x++){
-            const unsigned char *pixel=snapshot+(y*200+x)*4;
-            unsigned char *rgb=preview+sizeof(preview_header)-1+(y*200+x)*3;
+        memcpy(preview,preview_header,(size_t)header_bytes);
+        for(size_t y=0;y<ph;y++)for(size_t x=0;x<pw;x++){
+            const unsigned char *pixel=snapshot+(y*pw+x)*4;
+            unsigned char *rgb=preview+(size_t)header_bytes+(y*pw+x)*3;
             rgb[0]=pixel[2];rgb[1]=pixel[1];rgb[2]=pixel[0];
         }
-        if(preview_emit(argv[2],preview,total)){failure="preview stream write failed";goto done;}
-        fprintf(stderr,"A04FB preview OK frame=%s width=200 height=320 consistency=best-effort\n",argv[2]);
+        if(preview_emit(argv[2],preview,total,pw,ph)){failure="preview stream write failed";goto done;}
+        fprintf(stderr,"A04FB preview OK frame=%s width=%u height=%u consistency=best-effort\n",argv[2],pw,ph);
         result=0;goto done;
     }
     fd=open(argv[1],O_WRONLY|O_CREAT|O_EXCL,0600);
